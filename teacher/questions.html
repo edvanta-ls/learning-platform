@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChemExam — Questions</title>
+  <title>EdvantaLS — Questions</title>
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
@@ -1240,7 +1240,7 @@ function downloadCsvTemplate() {
   const row3   = 'structured,"Describe how an ionic bond is formed between sodium and chlorine.",3,,,,,,,"1. Sodium loses one electron (1); 2. Chlorine gains one electron (1); 3. Electrostatic attraction between oppositely charged ions (1)"';
   const blob = new Blob([[header, row1, row2, row3].join('\n')], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'chemexam_questions_template.csv'; a.click();
+  a.download = 'edvantals_questions_template.csv'; a.click();
 }
 
 function handleCsvDrop(e) {

@@ -22,7 +22,7 @@ function renderSidebar(activeId) {
             </svg>
           </div>
           <div>
-            <p class="text-white font-bold leading-none">ChemExam</p>
+            <p class="text-white font-bold leading-none">EdvantaLS</p>
             <p class="text-slate-400 text-xs mt-0.5">Teacher Portal</p>
           </div>
         </div>

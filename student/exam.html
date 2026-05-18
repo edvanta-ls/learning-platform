@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChemExam — Exam</title>
+  <title>EdvantaLS — Exam</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .nuc { display:inline-flex; flex-direction:column; font-size:0.85em; line-height:1.1; vertical-align:0.22em; margin:0 0.07em; text-align:center; }
+    .nuc span { line-height:1.05; }
+  </style>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -32,6 +36,10 @@
           class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors" id="submitBtn">
           Submit Exam
         </button>
+        <button onclick="window.close()" id="exitPreviewBtn"
+          class="hidden px-5 py-2.5 bg-slate-600 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-colors">
+          ← Exit Preview
+        </button>
       </div>
     </div>
     <!-- Progress bar -->
@@ -39,6 +47,12 @@
       <div id="progressBar" class="h-1 bg-indigo-500 transition-all" style="width:0%"></div>
     </div>
   </nav>
+
+  <!-- Preview mode banner -->
+  <div id="previewBanner" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-2.5 text-center">
+    <span class="text-amber-700 text-sm font-semibold">Preview Mode</span>
+    <span class="text-amber-600 text-sm"> — this is exactly what students see. No answers will be saved.</span>
+  </div>
 
   <!-- Loading state -->
   <div id="loadingState" class="max-w-3xl mx-auto px-6 py-16 text-center text-slate-400">
@@ -75,6 +89,7 @@
 
 <script>
   const paperId   = new URLSearchParams(window.location.search).get('paperId');
+  const isPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
   let currentUser = null;
   let currentUserData = null;
   let paper       = null;
@@ -83,12 +98,31 @@
   let timerInterval = null;
   let secondsLeft = null;
 
+  function renderChemText(s) {
+    return String(s || '').replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
+      `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`);
+  }
+
+  if (isPreview) {
+    document.getElementById('previewBanner').classList.remove('hidden');
+    document.getElementById('submitBtn').classList.add('hidden');
+    document.getElementById('exitPreviewBtn').classList.remove('hidden');
+  }
+
   auth.onAuthStateChanged(async (user) => {
     if (!user) { window.location.href = '../index.html'; return; }
     const snap = await db.collection('exam_users').doc(user.uid).get();
-    if (!snap.exists || snap.data().role !== 'student') {
-      window.location.href = '../index.html'; return;
+    if (!snap.exists) { window.location.href = '../index.html'; return; }
+    const role = snap.data().role;
+
+    if (isPreview) {
+      if (role !== 'teacher') { window.location.href = '../index.html'; return; }
+      if (!paperId) { alert('No paper specified.'); return; }
+      loadExam();
+      return;
     }
+
+    if (role !== 'student') { window.location.href = '../index.html'; return; }
     currentUser     = user;
     currentUserData = snap.data();
 
@@ -142,7 +176,7 @@
                   <span class="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center flex-shrink-0">${num}</span>
                   <span class="text-xs font-semibold text-blue-600 uppercase tracking-wide">Multiple Choice</span>
                 </div>
-                <p class="text-slate-800 font-medium leading-relaxed">${q.questionText}</p>
+                <div class="text-slate-800 font-medium leading-relaxed">${renderChemText(q.questionText)}</div>
               </div>
               <span class="flex-shrink-0 text-xs text-slate-400 font-medium">${q.totalMarks || 1} mark${(q.totalMarks||1)>1?'s':''}</span>
             </div>
@@ -153,7 +187,7 @@
                   <input type="radio" name="mcq-${q.id}" value="${letter}" onchange="selectMCQ('${q.id}', '${letter}')"
                     class="w-4 h-4 text-indigo-600 flex-shrink-0">
                   <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center flex-shrink-0 group-has-[:checked]:bg-indigo-100 group-has-[:checked]:text-indigo-700">${letter}</span>
-                  <span class="text-sm text-slate-700">${q.options?.[letter] || ''}</span>
+                  <span class="text-sm text-slate-700">${renderChemText(q.options?.[letter] || '')}</span>
                 </label>`).join('')}
             </div>
             <div id="answered-${q.id}" class="hidden mt-3 flex items-center gap-2 text-emerald-600 text-xs font-medium">
@@ -173,7 +207,7 @@
                   <span class="w-7 h-7 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold flex items-center justify-center flex-shrink-0">${num}</span>
                   <span class="text-xs font-semibold text-purple-600 uppercase tracking-wide">Structured</span>
                 </div>
-                <p class="text-slate-800 font-medium leading-relaxed">${q.questionText}</p>
+                <div class="text-slate-800 font-medium leading-relaxed">${renderChemText(q.questionText)}</div>
               </div>
               <span class="flex-shrink-0 text-xs text-slate-400 font-medium">${q.totalMarks} mark${q.totalMarks>1?'s':''}</span>
             </div>
