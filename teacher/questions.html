@@ -13,83 +13,161 @@
   <script src="../js/teacher-nav.js"></script>
 </head>
 <body class="bg-slate-100">
-<div class="flex h-screen">
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Teacher nav -->
   <aside id="teacher-sidebar" class="w-64 flex-shrink-0 hidden md:block"></aside>
-  <main class="flex-1 overflow-auto">
-    <!-- Top bar -->
-    <div class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <h2 class="text-xl font-bold text-slate-800">Question Bank</h2>
-        <select id="filterTopic" onchange="applyFilter()"
-          class="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-          <option value="">All topics</option>
-        </select>
+
+  <!-- Topic / Set tree panel -->
+  <div class="w-56 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
+    <div class="px-4 py-3 border-b border-slate-100">
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Topics</p>
+    </div>
+
+    <!-- All Questions row -->
+    <button id="rowAll" onclick="selectView(null, null)"
+      class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium w-full text-left transition-colors bg-indigo-50 text-indigo-700">
+      <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h7"/>
+      </svg>
+      <span class="truncate">All Questions</span>
+    </button>
+
+    <!-- Dynamic tree -->
+    <div class="flex-1 overflow-y-auto" id="topicTree"></div>
+
+    <!-- New Topic -->
+    <div class="p-3 border-t border-slate-100">
+      <button onclick="openTopicModal(null)"
+        class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300
+               text-slate-500 hover:border-indigo-400 hover:text-indigo-600 text-xs font-semibold transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        New Topic
+      </button>
+    </div>
+  </div>
+
+  <!-- Main panel -->
+  <main class="flex-1 min-w-0 overflow-auto flex flex-col">
+    <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <div id="breadcrumb" class="text-sm font-semibold text-slate-700 truncate">All Questions</div>
         <select id="filterType" onchange="applyFilter()"
-          class="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           <option value="">All types</option>
           <option value="mcq">MCQ</option>
           <option value="structured">Structured</option>
         </select>
       </div>
-      <button onclick="openModal()"
-        class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition-colors">
+      <button onclick="openQuestionModal()"
+        class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition-colors flex-shrink-0">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
         </svg>
         Add Question
       </button>
     </div>
-
-    <div class="p-8">
-      <div id="questionList" class="space-y-4">
+    <div class="flex-1 overflow-auto p-6">
+      <div id="questionList">
         <div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm shadow-sm">Loading…</div>
       </div>
     </div>
   </main>
 </div>
 
+<!-- Dropdown overlay + menu -->
+<div id="ddOverlay" class="hidden fixed inset-0 z-30" onclick="closeDropdown()"></div>
+<div id="ddMenu" class="hidden fixed z-40 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-40"></div>
+
+<!-- Topic Modal -->
+<div id="topicModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h3 id="topicModalTitle" class="text-base font-semibold text-slate-800">New Topic</h3>
+      <button onclick="closeTopicModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&#x2715;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="text" id="topicNameInput" placeholder="e.g. Organic Chemistry"
+        class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+        onkeydown="if(event.key==='Enter') saveTopic()">
+      <div id="topicErr" class="hidden text-sm text-red-600 bg-red-50 px-4 py-2 rounded-xl"></div>
+      <div class="flex gap-3">
+        <button onclick="closeTopicModal()" class="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">Cancel</button>
+        <button onclick="saveTopic()" id="topicSaveBtn" class="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Set Modal -->
+<div id="setModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h3 id="setModalTitle" class="text-base font-semibold text-slate-800">New Question Set</h3>
+      <button onclick="closeSetModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&#x2715;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="text" id="setNameInput" placeholder="e.g. Chapter 1 – Alkanes"
+        class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+        onkeydown="if(event.key==='Enter') saveSet()">
+      <div id="setErr" class="hidden text-sm text-red-600 bg-red-50 px-4 py-2 rounded-xl"></div>
+      <div class="flex gap-3">
+        <button onclick="closeSetModal()" class="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">Cancel</button>
+        <button onclick="saveSet()" id="setSaveBtn" class="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit Question Modal -->
 <div id="qModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-      <h3 id="modalTitle" class="text-lg font-semibold text-slate-800">Add Question</h3>
-      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600">
+      <h3 id="qModalTitle" class="text-lg font-semibold text-slate-800">Add Question</h3>
+      <button onclick="closeQuestionModal()" class="text-slate-400 hover:text-slate-600">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
-
     <div class="p-6 space-y-5">
-      <!-- Question type toggle -->
+
+      <!-- Topic + Set -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Topic</label>
+          <select id="qTopicSel" onchange="onTopicSelChange()"
+            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm bg-white">
+            <option value="">Select topic…</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Question Set</label>
+          <select id="qSetSel"
+            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm bg-white">
+            <option value="">Select set…</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Type toggle -->
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-2">Question type</label>
         <div class="flex rounded-xl border border-slate-200 overflow-hidden">
           <button id="typeMcq" onclick="setType('mcq')"
-            class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-indigo-600 text-white">
-            MCQ (Multiple Choice)
-          </button>
+            class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-indigo-600 text-white">MCQ (Multiple Choice)</button>
           <button id="typeStructured" onclick="setType('structured')"
-            class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-white text-slate-600 hover:bg-slate-50">
-            Structured
-          </button>
+            class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-white text-slate-600 hover:bg-slate-50">Structured</button>
         </div>
       </div>
 
-      <!-- Topic -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Topic</label>
-          <input type="text" id="qTopic" list="topicSuggestions"
-            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm"
-            placeholder="e.g. Organic Chemistry">
-          <datalist id="topicSuggestions"></datalist>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Total marks</label>
-          <input type="number" id="qMarks" min="1" value="1"
-            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm">
-        </div>
+      <!-- Marks -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Total marks</label>
+        <input type="number" id="qMarks" min="1" value="1"
+          class="w-32 px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm">
       </div>
 
       <!-- Question text -->
@@ -109,14 +187,14 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          <p class="text-slate-400 text-sm">Click to upload image, or drag and drop</p>
+          <p class="text-slate-400 text-sm">Click to upload image</p>
           <p class="text-slate-300 text-xs mt-1">PNG, JPG, GIF up to 10 MB</p>
         </div>
         <input type="file" id="qImage" accept="image/*" class="hidden" onchange="previewImage(this)">
         <div id="imgPreview" class="hidden mt-3 relative">
           <img id="previewImg" class="rounded-xl max-h-48 object-contain border border-slate-200">
           <button type="button" onclick="clearImage()"
-            class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">✕</button>
+            class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">&#x2715;</button>
         </div>
         <input type="hidden" id="existingImageUrl">
       </div>
@@ -128,42 +206,34 @@
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="A" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">A</span>
-            <input type="text" id="optA"
-              class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              placeholder="Option A">
+            <input type="text" id="optA" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option A">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="B" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">B</span>
-            <input type="text" id="optB"
-              class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              placeholder="Option B">
+            <input type="text" id="optB" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option B">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="C" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">C</span>
-            <input type="text" id="optC"
-              class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              placeholder="Option C">
+            <input type="text" id="optC" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option C">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="D" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">D</span>
-            <input type="text" id="optD"
-              class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              placeholder="Option D">
+            <input type="text" id="optD" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option D">
           </div>
         </div>
         <p class="text-xs text-slate-400">Select the radio button next to the correct answer.</p>
       </div>
 
-      <!-- Structured marking scheme -->
+      <!-- Structured -->
       <div id="structuredSection" class="hidden space-y-3">
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Marking scheme</label>
           <textarea id="qScheme" rows="5"
             class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm resize-none"
-            placeholder="List each marking point on a new line, e.g.:&#10;• Covalent bond formed between non-metals (1 mark)&#10;• Shared pair of electrons (1 mark)&#10;• Each atom achieves stable electron configuration (1 mark)"></textarea>
+            placeholder="List each marking point on a new line, e.g.:&#10;&#8226; Covalent bond formed between non-metals (1 mark)&#10;&#8226; Shared pair of electrons (1 mark)"></textarea>
           <p class="text-xs text-slate-400 mt-1">This is used by AI to suggest marks. Be specific per point.</p>
         </div>
         <label class="flex items-center gap-3 cursor-pointer">
@@ -175,261 +245,569 @@
       <div id="qError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
 
       <div class="flex gap-3 pt-2">
-        <button onclick="closeModal()"
-          class="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 text-sm">
-          Cancel
-        </button>
-        <button onclick="saveQuestion()"
-          class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 text-sm transition-colors" id="saveBtn">
-          Save Question
-        </button>
+        <button onclick="closeQuestionModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 text-sm">Cancel</button>
+        <button onclick="saveQuestion()" id="saveBtn" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 text-sm transition-colors">Save Question</button>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  let allQuestions = [];
-  let editingId = null;
-  let currentType = 'mcq';
-  let topics = new Set();
+// ── State ─────────────────────────────────────────────────────────
+let allTopics      = [];
+let setsCache      = {};          // topicId → array of set objects
+let expandedTopics = new Set();
+let currentTopicId = null;
+let currentSetId   = null;
+let viewQuestions  = [];
+let editingId      = null;
+let editingTopicId = null;
+let editingSetId   = null;
+let setModalTopicId = null;
+let currentType    = 'mcq';
 
-  initTeacherPage('questions').then(() => {
-    loadMarkingBadge();
-    loadQuestions();
+// ── Boot ──────────────────────────────────────────────────────────
+initTeacherPage('questions').then(() => {
+  loadMarkingBadge();
+  loadTopics().then(() => loadQuestionsForView());
+});
+
+// ── Topics ────────────────────────────────────────────────────────
+async function loadTopics() {
+  const snap = await db.collection('exam_topics').get();
+  allTopics = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.name || '').localeCompare(b.name || ''));
+  renderTopicTree();
+}
+
+async function fetchSets(topicId) {
+  const snap = await db.collection('exam_question_sets').where('topicId', '==', topicId).get();
+  setsCache[topicId] = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+// ── Tree rendering ────────────────────────────────────────────────
+function renderTopicTree() {
+  const tree = document.getElementById('topicTree');
+
+  // Update "All" row highlight
+  const rowAll = document.getElementById('rowAll');
+  rowAll.className = `flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium w-full text-left transition-colors
+    ${currentTopicId === null ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`;
+
+  if (allTopics.length === 0) {
+    tree.innerHTML = '<p class="px-4 py-5 text-xs text-slate-400 text-center">No topics yet.<br>Add one below.</p>';
+    return;
+  }
+
+  tree.innerHTML = allTopics.map(topic => {
+    const expanded = expandedTopics.has(topic.id);
+    const sets     = setsCache[topic.id] || [];
+    const isTopicActive = currentTopicId === topic.id && currentSetId === null;
+
+    const setsHtml = expanded ? `
+      <div class="pl-6 pb-1">
+        ${sets.length === 0
+          ? '<p class="px-3 py-1.5 text-xs text-slate-400 italic">No sets — click + to add one</p>'
+          : sets.map(set => {
+              const active = currentSetId === set.id;
+              return `
+                <div class="group flex items-center gap-2 px-3 py-2 cursor-pointer rounded-lg mx-1 transition-colors
+                  ${active ? 'bg-indigo-50' : 'hover:bg-slate-50'}"
+                  onclick="selectView('${topic.id}', '${set.id}')">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  <span class="flex-1 text-xs truncate ${active ? 'text-indigo-700 font-semibold' : 'text-slate-600'}">${escHtml(set.name)}</span>
+                  <button onclick="event.stopPropagation(); showSetDropdown(event, '${set.id}', '${topic.id}')"
+                    class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 text-slate-400 flex-shrink-0">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
+                    </svg>
+                  </button>
+                </div>`;
+            }).join('')}
+      </div>` : '';
+
+    return `
+      <div>
+        <div class="group flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-colors
+          ${isTopicActive ? 'bg-slate-100' : 'hover:bg-slate-50'}"
+          onclick="toggleTopic('${topic.id}')">
+          <svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+          <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+          </svg>
+          <span class="flex-1 text-sm font-medium text-slate-700 truncate">${escHtml(topic.name)}</span>
+          <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+            <button onclick="openSetModal(null, '${topic.id}')" title="Add set"
+              class="p-1 rounded hover:bg-indigo-100 text-slate-400 hover:text-indigo-600">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+            <button onclick="showTopicDropdown(event, '${topic.id}')" title="More"
+              class="p-1 rounded hover:bg-slate-200 text-slate-400">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        ${setsHtml}
+      </div>`;
+  }).join('');
+}
+
+async function toggleTopic(topicId) {
+  if (expandedTopics.has(topicId)) {
+    expandedTopics.delete(topicId);
+  } else {
+    expandedTopics.add(topicId);
+    if (!setsCache[topicId]) await fetchSets(topicId);
+  }
+  renderTopicTree();
+}
+
+async function selectView(topicId, setId) {
+  currentTopicId = topicId;
+  currentSetId   = setId;
+  updateBreadcrumb();
+  renderTopicTree();
+  await loadQuestionsForView();
+}
+
+function updateBreadcrumb() {
+  const el = document.getElementById('breadcrumb');
+  if (!currentTopicId) { el.textContent = 'All Questions'; return; }
+  const topic = allTopics.find(t => t.id === currentTopicId);
+  if (!currentSetId) { el.textContent = topic?.name || ''; return; }
+  const sets = setsCache[currentTopicId] || [];
+  const set  = sets.find(s => s.id === currentSetId);
+  el.innerHTML = `<span class="text-slate-400 font-normal">${escHtml(topic?.name || '')}</span>
+    <svg class="w-3 h-3 inline text-slate-300 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>${escHtml(set?.name || '')}`;
+}
+
+// ── Questions ─────────────────────────────────────────────────────
+async function loadQuestionsForView() {
+  document.getElementById('questionList').innerHTML =
+    '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm shadow-sm">Loading…</div>';
+  try {
+    let snap;
+    if (currentSetId) {
+      snap = await db.collection('exam_questions').where('setId', '==', currentSetId).get();
+    } else if (currentTopicId) {
+      snap = await db.collection('exam_questions').where('topicId', '==', currentTopicId).get();
+    } else {
+      snap = await db.collection('exam_questions').orderBy('createdAt', 'desc').get();
+    }
+    viewQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!currentSetId) {
+      viewQuestions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    }
+    applyFilter();
+  } catch (e) {
+    document.getElementById('questionList').innerHTML =
+      `<div class="bg-red-50 rounded-2xl p-6 text-red-600 text-sm">${e.message}</div>`;
+  }
+}
+
+function applyFilter() {
+  const type = document.getElementById('filterType').value;
+  const filtered = type ? viewQuestions.filter(q => q.type === type) : viewQuestions;
+  renderQuestions(filtered);
+}
+
+function renderQuestions(questions) {
+  const el = document.getElementById('questionList');
+  if (questions.length === 0) {
+    const hint = currentSetId ? 'No questions in this set yet. Click "Add Question" to add the first one.' : 'No questions found.';
+    el.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center text-slate-400 text-sm shadow-sm">${hint}</div>`;
+    return;
+  }
+  el.innerHTML = questions.map(q => {
+    const typeBadge = q.type === 'mcq'
+      ? '<span class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">MCQ</span>'
+      : '<span class="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">Structured</span>';
+    let locationBadge = '';
+    if (!currentSetId && q.topicId) {
+      const t = allTopics.find(x => x.id === q.topicId);
+      if (t) locationBadge = `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">${escHtml(t.name)}</span>`;
+    }
+    const img = q.imageUrl
+      ? `<img src="${q.imageUrl}" class="mt-3 max-h-32 rounded-xl border border-slate-200 object-contain">`
+      : '';
+    return `
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-2">
+              ${typeBadge}${locationBadge}
+              <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                ${q.totalMarks || 1} mark${(q.totalMarks || 1) > 1 ? 's' : ''}
+              </span>
+            </div>
+            <p class="text-slate-800 text-sm leading-relaxed">${escHtml(q.questionText || '')}</p>
+            ${img}
+            ${q.type === 'mcq' && q.options ? `
+              <div class="mt-3 grid grid-cols-2 gap-1.5">
+                ${['A','B','C','D'].map(l => `
+                  <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                    ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
+                    <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
+                    <span class="text-xs text-slate-700 truncate">${escHtml(q.options[l] || '')}</span>
+                  </div>`).join('')}
+              </div>` : ''}
+            ${q.type === 'structured' && q.markingScheme ? `
+              <details class="mt-3">
+                <summary class="text-xs text-indigo-600 font-medium cursor-pointer hover:underline">View marking scheme</summary>
+                <p class="mt-2 text-xs text-slate-600 bg-indigo-50 rounded-xl p-3 whitespace-pre-line">${escHtml(q.markingScheme)}</p>
+              </details>` : ''}
+          </div>
+          <div class="flex gap-1.5 flex-shrink-0">
+            <button onclick="editQuestion('${q.id}')"
+              class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+            <button onclick="deleteQuestion('${q.id}')"
+              class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Question Modal ────────────────────────────────────────────────
+async function openQuestionModal(existingQ = null) {
+  editingId = existingQ?.id || null;
+  document.getElementById('qModalTitle').textContent = existingQ ? 'Edit Question' : 'Add Question';
+
+  // Populate topic dropdown
+  const topicSel = document.getElementById('qTopicSel');
+  topicSel.innerHTML = '<option value="">Select topic…</option>';
+  allTopics.forEach(t => {
+    topicSel.insertAdjacentHTML('beforeend', `<option value="${t.id}">${escHtml(t.name)}</option>`);
   });
 
-  async function loadQuestions() {
-    const snap = await db.collection('exam_questions').orderBy('createdAt', 'desc').get();
-    allQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    allQuestions.forEach(q => { if (q.topic) topics.add(q.topic); });
-    rebuildTopicFilter();
-    applyFilter();
+  const preTopicId = existingQ?.topicId || currentTopicId || '';
+  topicSel.value = preTopicId;
+  await populateSetDropdown(preTopicId, existingQ?.setId || currentSetId || '');
+
+  setType(existingQ?.type || 'mcq');
+  document.getElementById('qText').value   = existingQ?.questionText || '';
+  document.getElementById('qMarks').value  = existingQ?.totalMarks || 1;
+  document.getElementById('qScheme').value = existingQ?.markingScheme || '';
+  document.getElementById('allowImageUpload').checked = existingQ?.allowImageUpload || false;
+  document.getElementById('existingImageUrl').value   = existingQ?.imageUrl || '';
+  document.getElementById('qError').classList.add('hidden');
+  clearImagePreview();
+  if (existingQ?.imageUrl) {
+    document.getElementById('imgPreview').classList.remove('hidden');
+    document.getElementById('previewImg').src = existingQ.imageUrl;
+  }
+  if (existingQ?.type === 'mcq' && existingQ.options) {
+    ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = existingQ.options[l] || ''; });
+    const radio = document.querySelector(`input[name="correct"][value="${existingQ.correctAnswer}"]`);
+    if (radio) radio.checked = true;
+  } else {
+    ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = ''; });
+    document.querySelectorAll('input[name="correct"]').forEach(r => r.checked = false);
+  }
+  document.getElementById('qModal').classList.remove('hidden');
+}
+
+async function populateSetDropdown(topicId, selectedSetId) {
+  const setSel = document.getElementById('qSetSel');
+  setSel.innerHTML = '<option value="">Select set…</option>';
+  if (!topicId) return;
+  if (!setsCache[topicId]) await fetchSets(topicId);
+  (setsCache[topicId] || []).forEach(s => {
+    setSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${escHtml(s.name)}</option>`);
+  });
+  if (selectedSetId) setSel.value = selectedSetId;
+}
+
+async function onTopicSelChange() {
+  await populateSetDropdown(document.getElementById('qTopicSel').value, '');
+}
+
+function closeQuestionModal() {
+  document.getElementById('qModal').classList.add('hidden');
+  editingId = null;
+}
+
+function editQuestion(id) {
+  const q = viewQuestions.find(x => x.id === id);
+  if (q) openQuestionModal(q);
+}
+
+async function deleteQuestion(id) {
+  if (!confirm('Delete this question?')) return;
+  await db.collection('exam_questions').doc(id).delete();
+  viewQuestions = viewQuestions.filter(q => q.id !== id);
+  applyFilter();
+}
+
+function setType(t) {
+  currentType = t;
+  document.getElementById('mcqSection').classList.toggle('hidden', t !== 'mcq');
+  document.getElementById('structuredSection').classList.toggle('hidden', t !== 'structured');
+  document.getElementById('typeMcq').className =
+    `flex-1 py-2.5 text-sm font-semibold transition-colors ${t === 'mcq' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
+  document.getElementById('typeStructured').className =
+    `flex-1 py-2.5 text-sm font-semibold transition-colors ${t === 'structured' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
+  if (t === 'mcq') document.getElementById('qMarks').value = 1;
+}
+
+async function saveQuestion() {
+  const btn     = document.getElementById('saveBtn');
+  const errEl   = document.getElementById('qError');
+  const topicId = document.getElementById('qTopicSel').value;
+  const setId   = document.getElementById('qSetSel').value;
+  const text    = document.getElementById('qText').value.trim();
+  const marks   = parseInt(document.getElementById('qMarks').value) || 1;
+  errEl.classList.add('hidden');
+
+  if (!topicId) { showInlineErr(errEl, 'Please select a topic.'); return; }
+  if (!setId)   { showInlineErr(errEl, 'Please select a question set.'); return; }
+  if (!text)    { showInlineErr(errEl, 'Please enter the question text.'); return; }
+
+  let data = { questionText: text, topicId, setId, totalMarks: marks, type: currentType };
+
+  if (currentType === 'mcq') {
+    const opts = { A: document.getElementById('optA').value.trim(), B: document.getElementById('optB').value.trim(),
+                   C: document.getElementById('optC').value.trim(), D: document.getElementById('optD').value.trim() };
+    const correct = document.querySelector('input[name="correct"]:checked')?.value;
+    if (!opts.A || !opts.B || !opts.C || !opts.D) { showInlineErr(errEl, 'Please fill in all four answer options.'); return; }
+    if (!correct) { showInlineErr(errEl, 'Please select the correct answer.'); return; }
+    data.options = opts;
+    data.correctAnswer = correct;
+  } else {
+    const scheme = document.getElementById('qScheme').value.trim();
+    if (!scheme) { showInlineErr(errEl, 'Please enter the marking scheme.'); return; }
+    data.markingScheme = scheme;
+    data.allowImageUpload = document.getElementById('allowImageUpload').checked;
   }
 
-  function rebuildTopicFilter() {
-    const sel = document.getElementById('filterTopic');
-    const dl  = document.getElementById('topicSuggestions');
-    const existing = sel.value;
-    sel.innerHTML = '<option value="">All topics</option>';
-    dl.innerHTML = '';
-    topics.forEach(t => {
-      sel.insertAdjacentHTML('beforeend', `<option value="${t}">${t}</option>`);
-      dl.insertAdjacentHTML('beforeend', `<option value="${t}">`);
-    });
-    sel.value = existing;
-  }
-
-  function applyFilter() {
-    const topic = document.getElementById('filterTopic').value;
-    const type  = document.getElementById('filterType').value;
-    let filtered = allQuestions;
-    if (topic) filtered = filtered.filter(q => q.topic === topic);
-    if (type)  filtered = filtered.filter(q => q.type === type);
-    renderQuestions(filtered);
-  }
-
-  function renderQuestions(questions) {
-    const el = document.getElementById('questionList');
-    if (questions.length === 0) {
-      el.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center text-slate-400 text-sm shadow-sm">No questions found. Click "Add Question" to create your first one.</div>';
-      return;
-    }
-    el.innerHTML = questions.map(q => {
-      const typeBadge = q.type === 'mcq'
-        ? '<span class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">MCQ</span>'
-        : '<span class="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">Structured</span>';
-      const img = q.imageUrl
-        ? `<img src="${q.imageUrl}" class="mt-3 max-h-32 rounded-xl border border-slate-200 object-contain">`
-        : '';
-      return `
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap mb-2">
-                ${typeBadge}
-                ${q.topic ? `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs">${q.topic}</span>` : ''}
-                <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">${q.totalMarks || 1} mark${(q.totalMarks||1)>1?'s':''}</span>
-              </div>
-              <p class="text-slate-800 text-sm leading-relaxed">${q.questionText || ''}</p>
-              ${img}
-              ${q.type === 'mcq' && q.options ? `
-                <div class="mt-3 grid grid-cols-2 gap-1.5">
-                  ${['A','B','C','D'].map(l => `
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
-                      <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
-                      <span class="text-xs text-slate-700 truncate">${q.options[l] || ''}</span>
-                    </div>`).join('')}
-                </div>` : ''}
-              ${q.type === 'structured' && q.markingScheme ? `
-                <details class="mt-3">
-                  <summary class="text-xs text-indigo-600 font-medium cursor-pointer hover:underline">View marking scheme</summary>
-                  <p class="mt-2 text-xs text-slate-600 bg-indigo-50 rounded-xl p-3 whitespace-pre-line">${q.markingScheme}</p>
-                </details>` : ''}
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-              <button onclick="editQuestion('${q.id}')"
-                class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-              </button>
-              <button onclick="deleteQuestion('${q.id}')"
-                class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function setType(t) {
-    currentType = t;
-    document.getElementById('mcqSection').classList.toggle('hidden', t !== 'mcq');
-    document.getElementById('structuredSection').classList.toggle('hidden', t !== 'structured');
-    document.getElementById('typeMcq').className = `flex-1 py-2.5 text-sm font-semibold transition-colors ${t === 'mcq' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
-    document.getElementById('typeStructured').className = `flex-1 py-2.5 text-sm font-semibold transition-colors ${t === 'structured' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
-    if (t === 'mcq') document.getElementById('qMarks').value = 1;
-  }
-
-  function openModal(q = null) {
-    editingId = q ? q.id : null;
-    document.getElementById('modalTitle').textContent = q ? 'Edit Question' : 'Add Question';
-    document.getElementById('qText').value   = q?.questionText || '';
-    document.getElementById('qTopic').value  = q?.topic || '';
-    document.getElementById('qMarks').value  = q?.totalMarks || 1;
-    document.getElementById('qScheme').value = q?.markingScheme || '';
-    document.getElementById('allowImageUpload').checked = q?.allowImageUpload || false;
-    document.getElementById('existingImageUrl').value = q?.imageUrl || '';
-    document.getElementById('qError').classList.add('hidden');
-    clearImagePreview();
-    if (q?.imageUrl) {
-      document.getElementById('imgPreview').classList.remove('hidden');
-      document.getElementById('previewImg').src = q.imageUrl;
-    }
-    setType(q?.type || 'mcq');
-    if (q?.type === 'mcq' && q.options) {
-      document.getElementById('optA').value = q.options.A || '';
-      document.getElementById('optB').value = q.options.B || '';
-      document.getElementById('optC').value = q.options.C || '';
-      document.getElementById('optD').value = q.options.D || '';
-      const radio = document.querySelector(`input[name="correct"][value="${q.correctAnswer}"]`);
-      if (radio) radio.checked = true;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const file = document.getElementById('qImage').files[0];
+    if (file) {
+      const ref = storage.ref(`exam-images/questions/${Date.now()}_${file.name}`);
+      await ref.put(file);
+      data.imageUrl = await ref.getDownloadURL();
     } else {
-      ['optA','optB','optC','optD'].forEach(id => document.getElementById(id).value = '');
-      document.querySelectorAll('input[name="correct"]').forEach(r => r.checked = false);
+      data.imageUrl = document.getElementById('existingImageUrl').value || null;
     }
-    document.getElementById('qModal').classList.remove('hidden');
-  }
-
-  function closeModal() {
-    document.getElementById('qModal').classList.add('hidden');
-    editingId = null;
-  }
-
-  function editQuestion(id) {
-    const q = allQuestions.find(x => x.id === id);
-    if (q) openModal(q);
-  }
-
-  async function deleteQuestion(id) {
-    if (!confirm('Delete this question? It will be removed from all papers.')) return;
-    await db.collection('exam_questions').doc(id).delete();
-    loadQuestions();
-  }
-
-  function previewImage(input) {
-    if (!input.files[0]) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('previewImg').src = e.target.result;
-      document.getElementById('imgPreview').classList.remove('hidden');
-      document.getElementById('imgDropZone').classList.add('hidden');
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
-
-  function clearImage() {
-    clearImagePreview();
-    document.getElementById('existingImageUrl').value = '';
-  }
-
-  function clearImagePreview() {
-    document.getElementById('qImage').value = '';
-    document.getElementById('imgPreview').classList.add('hidden');
-    document.getElementById('imgDropZone').classList.remove('hidden');
-    document.getElementById('previewImg').src = '';
-  }
-
-  async function saveQuestion() {
-    const btn     = document.getElementById('saveBtn');
-    const errEl   = document.getElementById('qError');
-    const text    = document.getElementById('qText').value.trim();
-    const topic   = document.getElementById('qTopic').value.trim();
-    const marks   = parseInt(document.getElementById('qMarks').value) || 1;
-    errEl.classList.add('hidden');
-
-    if (!text) { errEl.textContent = 'Please enter the question text.'; errEl.classList.remove('hidden'); return; }
-
-    let data = { questionText: text, topic, totalMarks: marks, type: currentType };
-
-    if (currentType === 'mcq') {
-      const opts = {
-        A: document.getElementById('optA').value.trim(),
-        B: document.getElementById('optB').value.trim(),
-        C: document.getElementById('optC').value.trim(),
-        D: document.getElementById('optD').value.trim(),
-      };
-      const correct = document.querySelector('input[name="correct"]:checked')?.value;
-      if (!opts.A || !opts.B || !opts.C || !opts.D) {
-        errEl.textContent = 'Please fill in all four answer options.'; errEl.classList.remove('hidden'); return;
-      }
-      if (!correct) {
-        errEl.textContent = 'Please select the correct answer.'; errEl.classList.remove('hidden'); return;
-      }
-      data.options = opts;
-      data.correctAnswer = correct;
+    if (editingId) {
+      await db.collection('exam_questions').doc(editingId).update(data);
     } else {
-      const scheme = document.getElementById('qScheme').value.trim();
-      if (!scheme) { errEl.textContent = 'Please enter the marking scheme.'; errEl.classList.remove('hidden'); return; }
-      data.markingScheme = scheme;
-      data.allowImageUpload = document.getElementById('allowImageUpload').checked;
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('exam_questions').add(data);
     }
-
-    btn.disabled = true; btn.textContent = 'Saving…';
-
-    try {
-      // Handle image upload
-      const file = document.getElementById('qImage').files[0];
-      if (file) {
-        const path = `exam-images/questions/${Date.now()}_${file.name}`;
-        const ref  = storage.ref(path);
-        await ref.put(file);
-        data.imageUrl = await ref.getDownloadURL();
-      } else {
-        data.imageUrl = document.getElementById('existingImageUrl').value || null;
-      }
-
-      if (editingId) {
-        await db.collection('exam_questions').doc(editingId).update(data);
-      } else {
-        data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        await db.collection('exam_questions').add(data);
-      }
-
-      if (topic) topics.add(topic);
-      closeModal();
-      loadQuestions();
-    } catch (ex) {
-      errEl.textContent = ex.message; errEl.classList.remove('hidden');
-    } finally {
-      btn.disabled = false; btn.textContent = 'Save Question';
-    }
+    closeQuestionModal();
+    await loadQuestionsForView();
+  } catch (ex) {
+    showInlineErr(errEl, ex.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Question';
   }
+}
+
+// ── Topic Modal ───────────────────────────────────────────────────
+function openTopicModal(topicId) {
+  editingTopicId = topicId;
+  const topic = topicId ? allTopics.find(t => t.id === topicId) : null;
+  document.getElementById('topicModalTitle').textContent = topicId ? 'Rename Topic' : 'New Topic';
+  document.getElementById('topicNameInput').value = topic?.name || '';
+  document.getElementById('topicErr').classList.add('hidden');
+  document.getElementById('topicModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('topicNameInput').focus(), 80);
+}
+
+function closeTopicModal() {
+  document.getElementById('topicModal').classList.add('hidden');
+  editingTopicId = null;
+}
+
+async function saveTopic() {
+  const name = document.getElementById('topicNameInput').value.trim();
+  if (!name) { showInlineErr(document.getElementById('topicErr'), 'Please enter a name.'); return; }
+  const btn = document.getElementById('topicSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (editingTopicId) {
+      await db.collection('exam_topics').doc(editingTopicId).update({ name });
+    } else {
+      await db.collection('exam_topics').add({ name, order: Date.now(), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeTopicModal();
+    await loadTopics();
+  } catch (e) {
+    showInlineErr(document.getElementById('topicErr'), e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteTopic(topicId) {
+  const qSnap = await db.collection('exam_questions').where('topicId', '==', topicId).limit(1).get();
+  if (!qSnap.empty) { alert('Cannot delete: this topic has questions. Move or delete them first.'); return; }
+  if (!confirm('Delete this topic and all its sets?')) return;
+  const setsSnap = await db.collection('exam_question_sets').where('topicId', '==', topicId).get();
+  const batch = db.batch();
+  setsSnap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(db.collection('exam_topics').doc(topicId));
+  await batch.commit();
+  delete setsCache[topicId];
+  if (currentTopicId === topicId) { currentTopicId = null; currentSetId = null; }
+  await loadTopics();
+  await loadQuestionsForView();
+  updateBreadcrumb();
+}
+
+// ── Set Modal ─────────────────────────────────────────────────────
+function openSetModal(setId, topicId) {
+  editingSetId    = setId;
+  setModalTopicId = topicId;
+  const sets = setsCache[topicId] || [];
+  const set  = setId ? sets.find(s => s.id === setId) : null;
+  document.getElementById('setModalTitle').textContent = setId ? 'Rename Set' : 'New Question Set';
+  document.getElementById('setNameInput').value = set?.name || '';
+  document.getElementById('setErr').classList.add('hidden');
+  document.getElementById('setModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('setNameInput').focus(), 80);
+}
+
+function closeSetModal() {
+  document.getElementById('setModal').classList.add('hidden');
+  editingSetId = null; setModalTopicId = null;
+}
+
+async function saveSet() {
+  const name = document.getElementById('setNameInput').value.trim();
+  if (!name) { showInlineErr(document.getElementById('setErr'), 'Please enter a name.'); return; }
+  const btn = document.getElementById('setSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (editingSetId) {
+      await db.collection('exam_question_sets').doc(editingSetId).update({ name });
+    } else {
+      await db.collection('exam_question_sets').add({
+        name, topicId: setModalTopicId, order: Date.now(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      expandedTopics.add(setModalTopicId);
+    }
+    delete setsCache[setModalTopicId];
+    await fetchSets(setModalTopicId);
+    closeSetModal();
+    renderTopicTree();
+  } catch (e) {
+    showInlineErr(document.getElementById('setErr'), e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteSet(setId, topicId) {
+  const qSnap = await db.collection('exam_questions').where('setId', '==', setId).limit(1).get();
+  if (!qSnap.empty) { alert('Cannot delete: this set has questions. Move or delete them first.'); return; }
+  if (!confirm('Delete this set?')) return;
+  await db.collection('exam_question_sets').doc(setId).delete();
+  delete setsCache[topicId];
+  if (currentSetId === setId) { currentSetId = null; updateBreadcrumb(); await loadQuestionsForView(); }
+  await fetchSets(topicId);
+  renderTopicTree();
+}
+
+// ── Dropdown menus ────────────────────────────────────────────────
+function showTopicDropdown(event, topicId) {
+  const menu = document.getElementById('ddMenu');
+  menu.innerHTML = `
+    <button onclick="closeDropdown(); openTopicModal('${topicId}')"
+      class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Rename</button>
+    <button onclick="closeDropdown(); deleteTopic('${topicId}')"
+      class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete topic</button>`;
+  positionDropdown(event);
+}
+
+function showSetDropdown(event, setId, topicId) {
+  const menu = document.getElementById('ddMenu');
+  menu.innerHTML = `
+    <button onclick="closeDropdown(); openSetModal('${setId}', '${topicId}')"
+      class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Rename</button>
+    <button onclick="closeDropdown(); deleteSet('${setId}', '${topicId}')"
+      class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete set</button>`;
+  positionDropdown(event);
+}
+
+function positionDropdown(event) {
+  const menu    = document.getElementById('ddMenu');
+  const overlay = document.getElementById('ddOverlay');
+  const rect    = event.currentTarget.getBoundingClientRect();
+  const top     = rect.bottom + 4;
+  let   left    = rect.left - 100;
+  if (left < 4) left = 4;
+  menu.style.top  = top + 'px';
+  menu.style.left = left + 'px';
+  menu.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+}
+
+function closeDropdown() {
+  document.getElementById('ddMenu').classList.add('hidden');
+  document.getElementById('ddOverlay').classList.add('hidden');
+}
+
+// ── Image helpers ─────────────────────────────────────────────────
+function previewImage(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('previewImg').src = e.target.result;
+    document.getElementById('imgPreview').classList.remove('hidden');
+    document.getElementById('imgDropZone').classList.add('hidden');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function clearImage() {
+  clearImagePreview();
+  document.getElementById('existingImageUrl').value = '';
+}
+
+function clearImagePreview() {
+  document.getElementById('qImage').value = '';
+  document.getElementById('imgPreview').classList.add('hidden');
+  document.getElementById('imgDropZone').classList.remove('hidden');
+  document.getElementById('previewImg').src = '';
+}
+
+// ── Utilities ─────────────────────────────────────────────────────
+function showInlineErr(el, msg) {
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 </script>
 </body>
 </html>
