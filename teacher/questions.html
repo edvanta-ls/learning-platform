@@ -316,6 +316,10 @@
         Screenshot / Image
         <span class="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs">AI</span>
       </button>
+      <button id="importTabDoc" onclick="switchImportTab('doc')"
+        class="px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5">
+        PDF / Word
+      </button>
     </div>
 
     <div class="p-6 space-y-5">
@@ -429,6 +433,43 @@
             AI is reading the image…
           </div>
           <div id="extractError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
+        </div>
+      </div>
+
+      <!-- PDF / Word Tab -->
+      <div id="importPanelDoc" class="hidden">
+        <div class="space-y-4">
+          <p class="text-sm text-slate-600">Upload a PDF or Word (.docx) exam paper — questions will be extracted automatically. No API key required.</p>
+          <div id="docDropZone"
+            class="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+            onclick="document.getElementById('docFileInput').click()"
+            ondragover="event.preventDefault(); this.classList.add('border-indigo-400','bg-indigo-50')"
+            ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+            ondrop="handleDocDrop(event)">
+            <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="text-slate-400 text-sm font-medium">Click to upload or drag & drop</p>
+            <p class="text-slate-300 text-xs mt-1">PDF or .docx files</p>
+          </div>
+          <input type="file" id="docFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" onchange="handleDocFile(this)">
+          <div id="docStatus" class="hidden text-sm text-indigo-600 flex items-center gap-2">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <span id="docStatusText">Reading file…</span>
+          </div>
+          <div id="docError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
+          <div id="docExtractedWrap" class="hidden space-y-3">
+            <label class="block text-sm font-medium text-slate-700">Extracted text — edit if needed, then click Parse</label>
+            <textarea id="docExtractedText" rows="10"
+              class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm resize-none font-mono"></textarea>
+            <button onclick="parseDocText()"
+              class="px-4 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors">
+              Parse Questions
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1124,13 +1165,17 @@ function closeImportModal() {
   document.getElementById('csvFileName').textContent = 'No file chosen';
   document.getElementById('csvFileInput').value = '';
   document.getElementById('importTextarea').value = '';
+  document.getElementById('docFileInput').value = '';
+  document.getElementById('docExtractedWrap').classList.add('hidden');
+  document.getElementById('docExtractedText').value = '';
+  document.getElementById('docError').classList.add('hidden');
   clearImportImg();
   importedRows = [];
 }
 
 function switchImportTab(tab) {
   currentImportTab = tab;
-  ['csv','text','img'].forEach(t => {
+  ['csv','text','img','doc'].forEach(t => {
     document.getElementById('importPanel' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== tab);
     const btn = document.getElementById('importTab' + t.charAt(0).toUpperCase() + t.slice(1));
     btn.className = `px-4 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
@@ -1355,6 +1400,96 @@ Example output: [{"type":"mcq","question":"Which two atoms are isotopes?","marks
   } finally {
     btn.disabled = false; status.classList.add('hidden');
   }
+}
+
+// ── PDF / Word Import ─────────────────────────────────────────────
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function loadPdfJs() {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc)
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function loadMammoth() {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+}
+
+function handleDocDrop(e) {
+  e.preventDefault();
+  document.getElementById('docDropZone').classList.remove('border-indigo-400','bg-indigo-50');
+  const file = e.dataTransfer.files[0];
+  if (file) processDocFile(file);
+}
+
+function handleDocFile(input) {
+  const file = input.files[0];
+  if (file) processDocFile(file);
+}
+
+async function processDocFile(file) {
+  const statusEl  = document.getElementById('docStatus');
+  const statusTxt = document.getElementById('docStatusText');
+  const errEl     = document.getElementById('docError');
+  const wrapEl    = document.getElementById('docExtractedWrap');
+  const textEl    = document.getElementById('docExtractedText');
+  errEl.classList.add('hidden');
+  wrapEl.classList.add('hidden');
+  statusEl.classList.remove('hidden');
+
+  try {
+    const ext = file.name.split('.').pop().toLowerCase();
+    let text = '';
+
+    if (ext === 'pdf') {
+      statusTxt.textContent = 'Loading PDF reader…';
+      await loadPdfJs();
+      statusTxt.textContent = 'Extracting text from PDF…';
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const parts = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        parts.push(content.items.map(it => it.str).join(' '));
+      }
+      text = parts.join('\n\n');
+    } else if (ext === 'docx') {
+      statusTxt.textContent = 'Loading Word reader…';
+      await loadMammoth();
+      statusTxt.textContent = 'Extracting text from Word document…';
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      text = result.value;
+    } else {
+      throw new Error('Unsupported file type. Please upload a .pdf or .docx file.');
+    }
+
+    if (!text.trim()) throw new Error('No text could be extracted from this file. It may be a scanned image PDF — try the Screenshot / Image tab instead.');
+
+    textEl.value = text.trim();
+    wrapEl.classList.remove('hidden');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    statusEl.classList.add('hidden');
+  }
+}
+
+function parseDocText() {
+  const text = document.getElementById('docExtractedText').value;
+  if (!text.trim()) return;
+  document.getElementById('importTextarea').value = text;
+  parseTextQuestions();
 }
 
 // ── Preview & Execute Import ──────────────────────────────────────
