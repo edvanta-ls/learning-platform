@@ -529,20 +529,31 @@ async function handleQuillPaste(e) {
   }
 }
 
-// Compress image and embed as base64 data URL directly in Quill.
-// No Firebase Storage needed — compressed images are ~40-60 KB each.
 async function uploadToQuill(file) {
   const uploading = document.getElementById('qEditorUploading');
   const msgEl     = document.getElementById('qEditorUploadMsg');
   const errEl     = document.getElementById('qEditorUploadErr');
   uploading.classList.remove('hidden');
   errEl.classList.add('hidden');
-  msgEl.textContent = 'Compressing image…';
   try {
-    const dataUrl = await compressToDataUrl(file, 1000, 0.75);
+    msgEl.textContent = 'Compressing…';
+    const blob = await compressToBlob(file, 1200, 0.82);
+
+    // Try Firebase Storage; if rules block it or it times out, fall back to base64
+    let imageUrl;
+    try {
+      imageUrl = await Promise.race([
+        storageUpload(blob, msgEl),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))
+      ]);
+    } catch {
+      msgEl.textContent = 'Embedding locally…';
+      imageUrl = await blobToDataUrl(blob);
+    }
+
     const range = quill.getSelection(true);
-    const idx = range ? range.index : quill.getLength();
-    quill.insertEmbed(idx, 'image', dataUrl, Quill.sources.USER);
+    const idx   = range ? range.index : quill.getLength();
+    quill.insertEmbed(idx, 'image', imageUrl, Quill.sources.USER);
     quill.setSelection(idx + 1);
   } catch (err) {
     errEl.textContent = 'Image insert failed: ' + err.message;
@@ -552,7 +563,22 @@ async function uploadToQuill(file) {
   }
 }
 
-function compressToDataUrl(file, maxWidth, quality) {
+function storageUpload(blob, msgEl) {
+  return new Promise((resolve, reject) => {
+    const ref  = storage.ref(`exam-images/questions/${Date.now()}.jpg`);
+    const task = ref.put(blob, { contentType: 'image/jpeg' });
+    task.on('state_changed',
+      snap => {
+        const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        msgEl.textContent = `Uploading ${pct}%`;
+      },
+      err => reject(err),
+      async () => { try { resolve(await ref.getDownloadURL()); } catch (e) { reject(e); } }
+    );
+  });
+}
+
+function compressToBlob(file, maxWidth, quality) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -563,10 +589,19 @@ function compressToDataUrl(file, maxWidth, quality) {
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', quality);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image')); };
     img.src = url;
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = e => resolve(e.target.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
   });
 }
 
