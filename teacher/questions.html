@@ -24,6 +24,9 @@
     .q-text p { margin: 0; } .q-text img { max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 6px; }
     .q-text strong { font-weight: 600; } .q-text em { font-style: italic; }
     .q-text sub { font-size: 0.75em; } .q-text sup { font-size: 0.75em; }
+    /* Stacked nuclide notation e.g. {4|2}He */
+    .nuc { display:inline-flex; flex-direction:column; font-size:0.72em; line-height:1.15; vertical-align:0.3em; margin:0 0.06em; text-align:center; }
+    .nuc span { line-height:1.1; }
     /* Import image drop zone */
     #importImgZone.drag-over { border-color: #6366f1; background: #eef2ff; }
   </style>
@@ -194,6 +197,9 @@
         <label class="block text-sm font-medium text-slate-700 mb-1">
           Question text
           <span class="text-xs text-slate-400 font-normal ml-2">Bold · Italic · Sub/Superscript · Paste screenshot directly</span>
+          <button type="button" onclick="insertNuclideInEditor()"
+            class="ml-2 px-2 py-0.5 text-xs bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 text-slate-600 rounded-lg font-mono border border-slate-200 transition-colors"
+            title="Insert stacked nuclide notation e.g. ⁴₂He">&#x00B2;&#x2081; stacked</button>
         </label>
         <div id="qTextEditor"></div>
         <div id="qEditorUploading" class="hidden mt-1 flex items-center gap-2">
@@ -208,27 +214,50 @@
 
       <!-- MCQ options -->
       <div id="mcqSection" class="space-y-3">
-        <label class="block text-sm font-medium text-slate-700">Answer options</label>
+        <div class="flex items-center justify-between">
+          <label class="block text-sm font-medium text-slate-700">Answer options</label>
+        </div>
+        <!-- Chemistry character picker -->
+        <div class="flex flex-wrap items-center gap-1 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
+          <span class="text-xs text-slate-400 mr-1 flex-shrink-0">Insert:</span>
+          <span class="text-xs text-slate-300 mr-0.5">sup →</span>
+          ${['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹','+','⁻'].map(c =>
+            `<button type="button" onclick="insertCharInOpt('${c}')" class="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50 hover:border-indigo-300 font-mono transition-colors">${c}</button>`
+          ).join('')}
+          <span class="text-slate-200 mx-1">|</span>
+          <span class="text-xs text-slate-300 mr-0.5">sub →</span>
+          ${['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'].map(c =>
+            `<button type="button" onclick="insertCharInOpt('${c}')" class="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50 hover:border-indigo-300 font-mono transition-colors">${c}</button>`
+          ).join('')}
+          <span class="text-slate-200 mx-1">|</span>
+          <button type="button" onclick="insertNuclideInOpt()"
+            class="px-2 py-0.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 font-mono transition-colors"
+            title="Insert stacked nuclide notation">²₁ stacked</button>
+        </div>
         <div class="space-y-2">
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="A" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">A</span>
-            <input type="text" id="optA" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option A">
+            <input type="text" id="optA" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option A"
+              onfocus="activeOptInput=this">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="B" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">B</span>
-            <input type="text" id="optB" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option B">
+            <input type="text" id="optB" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option B"
+              onfocus="activeOptInput=this">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="C" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">C</span>
-            <input type="text" id="optC" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option C">
+            <input type="text" id="optC" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option C"
+              onfocus="activeOptInput=this">
           </div>
           <div class="flex items-center gap-3">
             <input type="radio" name="correct" value="D" class="w-4 h-4 text-indigo-600 flex-shrink-0">
             <span class="text-sm font-semibold text-slate-600 w-4">D</span>
-            <input type="text" id="optD" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option D">
+            <input type="text" id="optD" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option D"
+              onfocus="activeOptInput=this">
           </div>
         </div>
         <p class="text-xs text-slate-400">Select the radio button next to the correct answer.</p>
@@ -522,8 +551,10 @@ async function handleQuillPaste(e) {
   if (!items) return;
   for (const item of items) {
     if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (!file) continue;          // some clipboard types return null
       e.preventDefault(); e.stopPropagation();
-      await uploadToQuill(item.getAsFile());
+      await uploadToQuill(file);
       break;
     }
   }
@@ -783,19 +814,20 @@ function renderQuestions(questions) {
           <div class="flex-1 min-w-0 flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap mb-2">
+                <span class="text-xs font-bold text-slate-400 tabular-nums">Q${idx + 1}</span>
                 ${typeBadge}${locationBadge}
                 <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
                   ${q.totalMarks || 1} mark${(q.totalMarks || 1) > 1 ? 's' : ''}
                 </span>
               </div>
-              <div class="q-text text-slate-800 text-sm leading-relaxed">${q.questionText || ''}</div>
+              <div class="q-text text-slate-800 text-sm leading-relaxed">${renderChemText(q.questionText || '')}</div>
               ${q.type === 'mcq' && q.options ? `
                 <div class="mt-3 grid grid-cols-2 gap-1.5">
                   ${['A','B','C','D'].map(l => `
                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
                       ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
                       <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
-                      <span class="text-xs text-slate-700 truncate">${escHtml(q.options[l] || '')}</span>
+                      <span class="text-xs text-slate-700">${renderChemText(escHtml(q.options[l] || ''))}</span>
                     </div>`).join('')}
                 </div>` : ''}
               ${q.type === 'structured' && q.markingScheme ? `
@@ -1402,6 +1434,100 @@ async function executeImport() {
 function showInlineErr(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Convert {mass|atomic} shorthand → stacked nuclide HTML.
+// e.g. {4|2}He → ⁴₂He stacked vertically to the left of He.
+function renderChemText(s) {
+  return String(s).replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
+    `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`
+  );
+}
+
+// ── Nuclide notation helpers ──────────────────────────────────────
+let activeOptInput = null;
+
+function insertCharInOpt(char) {
+  const el = activeOptInput;
+  if (!el) { alert('Click inside an option field first, then click the character.'); return; }
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = el.value.slice(0, s) + char + el.value.slice(e);
+  el.selectionStart = el.selectionEnd = s + char.length;
+  el.focus();
+}
+
+function insertNuclideInOpt() {
+  const el = activeOptInput;
+  if (!el) { alert('Click inside an option field first.'); return; }
+  showNuclideDialog(shorthand => insertCharInOpt(shorthand));
+}
+
+function insertNuclideInEditor() {
+  showNuclideDialog(shorthand => {
+    const range = quill.getSelection(true) || { index: quill.getLength() };
+    quill.insertText(range.index, shorthand, Quill.sources.USER);
+    quill.setSelection(range.index + shorthand.length);
+  });
+}
+
+function showNuclideDialog(onInsert) {
+  // Build a small inline dialog overlay
+  const existing = document.getElementById('nuclideDialog');
+  if (existing) existing.remove();
+  const d = document.createElement('div');
+  d.id = 'nuclideDialog';
+  d.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4';
+  d.innerHTML = `
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-72 space-y-4">
+      <h4 class="text-base font-semibold text-slate-800">Stacked nuclide notation</h4>
+      <div class="flex items-center gap-3">
+        <div class="flex-1">
+          <label class="text-xs text-slate-500 mb-1 block">Mass number (top)</label>
+          <input id="ndMass" type="text" maxlength="4" autofocus
+            class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            placeholder="e.g. 4">
+        </div>
+        <div class="flex-1">
+          <label class="text-xs text-slate-500 mb-1 block">Atomic number (bottom)</label>
+          <input id="ndAtomic" type="text" maxlength="4"
+            class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            placeholder="e.g. 2">
+        </div>
+      </div>
+      <div id="ndPreview" class="text-slate-500 text-sm text-center py-1 bg-slate-50 rounded-xl">Preview: —</div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('nuclideDialog').remove()"
+          class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">Cancel</button>
+        <button onclick="confirmNuclide()"
+          class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700">Insert</button>
+      </div>
+    </div>`;
+  document.body.appendChild(d);
+  document.getElementById('ndMass').focus();
+
+  // Live preview
+  ['ndMass','ndAtomic'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateNdPreview);
+    document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') confirmNuclide(); });
+  });
+
+  window._ndOnInsert = onInsert;
+}
+
+function updateNdPreview() {
+  const mass   = document.getElementById('ndMass').value   || '?';
+  const atomic = document.getElementById('ndAtomic').value || '?';
+  document.getElementById('ndPreview').innerHTML =
+    `Preview: <span class="nuc font-bold"><span>${escHtml(mass)}</span><span>${escHtml(atomic)}</span></span>X`;
+}
+
+function confirmNuclide() {
+  const mass   = document.getElementById('ndMass').value.trim();
+  const atomic = document.getElementById('ndAtomic').value.trim();
+  if (!mass || !atomic) return;
+  const shorthand = `{${mass}|${atomic}}`;
+  document.getElementById('nuclideDialog').remove();
+  if (window._ndOnInsert) window._ndOnInsert(shorthand);
 }
 </script>
 </body>
