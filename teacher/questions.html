@@ -724,7 +724,11 @@ async function loadQuestionsForView() {
     else if (currentTopicId) snap = await db.collection('exam_questions').where('topicId', '==', currentTopicId).get();
     else                     snap = await db.collection('exam_questions').orderBy('createdAt', 'desc').get();
     viewQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (!currentSetId) viewQuestions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    if (currentSetId) {
+      viewQuestions.sort((a, b) => (a.order ?? a.createdAt?.seconds ?? 0) - (b.order ?? b.createdAt?.seconds ?? 0));
+    } else {
+      viewQuestions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    }
     applyFilter();
   } catch (e) {
     document.getElementById('questionList').innerHTML =
@@ -744,7 +748,7 @@ function renderQuestions(questions) {
     el.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center text-slate-400 text-sm shadow-sm">${hint}</div>`;
     return;
   }
-  el.innerHTML = questions.map(q => {
+  el.innerHTML = questions.map((q, idx) => {
     const typeBadge = q.type === 'mcq'
       ? '<span class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">MCQ</span>'
       : '<span class="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">Structured</span>';
@@ -753,51 +757,104 @@ function renderQuestions(questions) {
       const t = allTopics.find(x => x.id === q.topicId);
       if (t) locationBadge = `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">${escHtml(t.name)}</span>`;
     }
+    const isFirst = idx === 0;
+    const isLast  = idx === questions.length - 1;
+    const reorderBtns = currentSetId ? `
+      <div class="flex flex-col gap-0.5">
+        <button onclick="moveQuestion('${q.id}', -1)" ${isFirst ? 'disabled' : ''}
+          class="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          title="Move up">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/>
+          </svg>
+        </button>
+        <button onclick="moveQuestion('${q.id}', 1)" ${isLast ? 'disabled' : ''}
+          class="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          title="Move down">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+      </div>` : '';
     return `
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 flex-wrap mb-2">
-              ${typeBadge}${locationBadge}
-              <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
-                ${q.totalMarks || 1} mark${(q.totalMarks || 1) > 1 ? 's' : ''}
-              </span>
+        <div class="flex items-start gap-2">
+          ${reorderBtns}
+          <div class="flex-1 min-w-0 flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-2">
+                ${typeBadge}${locationBadge}
+                <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                  ${q.totalMarks || 1} mark${(q.totalMarks || 1) > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div class="q-text text-slate-800 text-sm leading-relaxed">${q.questionText || ''}</div>
+              ${q.type === 'mcq' && q.options ? `
+                <div class="mt-3 grid grid-cols-2 gap-1.5">
+                  ${['A','B','C','D'].map(l => `
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                      ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
+                      <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
+                      <span class="text-xs text-slate-700 truncate">${escHtml(q.options[l] || '')}</span>
+                    </div>`).join('')}
+                </div>` : ''}
+              ${q.type === 'structured' && q.markingScheme ? `
+                <details class="mt-3">
+                  <summary class="text-xs text-indigo-600 font-medium cursor-pointer hover:underline">View marking scheme</summary>
+                  <p class="mt-2 text-xs text-slate-600 bg-indigo-50 rounded-xl p-3 whitespace-pre-line">${escHtml(q.markingScheme)}</p>
+                </details>` : ''}
             </div>
-            <div class="q-text text-slate-800 text-sm leading-relaxed">${q.questionText || ''}</div>
-            ${q.type === 'mcq' && q.options ? `
-              <div class="mt-3 grid grid-cols-2 gap-1.5">
-                ${['A','B','C','D'].map(l => `
-                  <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
-                    ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
-                    <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
-                    <span class="text-xs text-slate-700 truncate">${escHtml(q.options[l] || '')}</span>
-                  </div>`).join('')}
-              </div>` : ''}
-            ${q.type === 'structured' && q.markingScheme ? `
-              <details class="mt-3">
-                <summary class="text-xs text-indigo-600 font-medium cursor-pointer hover:underline">View marking scheme</summary>
-                <p class="mt-2 text-xs text-slate-600 bg-indigo-50 rounded-xl p-3 whitespace-pre-line">${escHtml(q.markingScheme)}</p>
-              </details>` : ''}
-          </div>
-          <div class="flex gap-1.5 flex-shrink-0">
-            <button onclick="editQuestion('${q.id}')"
-              class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-            </button>
-            <button onclick="deleteQuestion('${q.id}')"
-              class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>
-            </button>
+            <div class="flex gap-1.5 flex-shrink-0">
+              <button onclick="editQuestion('${q.id}')"
+                class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+              </button>
+              <button onclick="deleteQuestion('${q.id}')"
+                class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>`;
   }).join('');
+}
+
+async function moveQuestion(id, direction) {
+  const idx     = viewQuestions.findIndex(q => q.id === id);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= viewQuestions.length) return;
+
+  // Assign order values if any are missing (first-time ordering)
+  const needsOrder = viewQuestions.some(q => q.order == null);
+  if (needsOrder) {
+    const batch = db.batch();
+    viewQuestions.forEach((q, i) => {
+      q.order = i * 1000;
+      batch.update(db.collection('exam_questions').doc(q.id), { order: q.order });
+    });
+    await batch.commit();
+  }
+
+  // Swap order values
+  const a = viewQuestions[idx];
+  const b = viewQuestions[swapIdx];
+  [a.order, b.order] = [b.order, a.order];
+
+  const batch = db.batch();
+  batch.update(db.collection('exam_questions').doc(a.id), { order: a.order });
+  batch.update(db.collection('exam_questions').doc(b.id), { order: b.order });
+  await batch.commit();
+
+  // Re-sort and re-render without a full reload
+  viewQuestions.sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+  applyFilter();
 }
 
 // ── Question Modal ────────────────────────────────────────────────
@@ -905,7 +962,7 @@ async function saveQuestion() {
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     if (editingId) { await db.collection('exam_questions').doc(editingId).update(data); }
-    else { data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('exam_questions').add(data); }
+    else { data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); data.order = Date.now(); await db.collection('exam_questions').add(data); }
     closeQuestionModal();
     await loadQuestionsForView();
   } catch (ex) { showInlineErr(errEl, ex.message); }
@@ -1329,6 +1386,7 @@ async function executeImport() {
         doc.markingScheme = q.markingScheme;
         doc.allowImageUpload = false;
       }
+      doc.order = Date.now() + i;
       batch.set(ref, doc);
     }
     await batch.commit();
