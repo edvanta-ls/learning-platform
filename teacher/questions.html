@@ -25,8 +25,8 @@
     .q-text strong { font-weight: 600; } .q-text em { font-style: italic; }
     .q-text sub { font-size: 0.75em; } .q-text sup { font-size: 0.75em; }
     /* Stacked nuclide notation e.g. {4|2}He */
-    .nuc { display:inline-flex; flex-direction:column; font-size:0.72em; line-height:1.15; vertical-align:0.3em; margin:0 0.06em; text-align:center; }
-    .nuc span { line-height:1.1; }
+    .nuc { display:inline-flex; flex-direction:column; font-size:0.85em; line-height:1.1; vertical-align:0.22em; margin:0 0.07em; text-align:center; }
+    .nuc span { line-height:1.05; }
     /* Import image drop zone */
     #importImgZone.drag-over { border-color: #6366f1; background: #eef2ff; }
   </style>
@@ -545,6 +545,34 @@ let importedRows   = [];      // parsed questions waiting to import
 let importImgData  = null;    // { base64, mediaType } for AI extraction
 let currentImportTab = 'csv';
 
+// ── Custom Quill Blot: stacked nuclide ───────────────────────────
+(function registerNuclideBlot() {
+  const Inline = Quill.import('blots/inline');
+  class NuclideBlot extends Inline {
+    static create(value) {
+      const node = super.create();
+      const [top, bot] = String(value).split('|');
+      const s1 = document.createElement('span'); s1.textContent = top || '';
+      const s2 = document.createElement('span'); s2.textContent = bot || '';
+      node.appendChild(s1); node.appendChild(s2);
+      node.setAttribute('data-nuc', value);
+      node.contentEditable = 'false';
+      return node;
+    }
+    static value(node) { return node.getAttribute('data-nuc') || ''; }
+    static formats(node) { return node.getAttribute('data-nuc') || ''; }
+    format(name, value) {
+      if (name === NuclideBlot.blotName && value)
+        this.domNode.setAttribute('data-nuc', value);
+      else super.format(name, value);
+    }
+  }
+  NuclideBlot.blotName = 'nuclide';
+  NuclideBlot.tagName  = 'span';
+  NuclideBlot.className = 'nuc';
+  Quill.register(NuclideBlot, true);
+})();
+
 // ── Boot ──────────────────────────────────────────────────────────
 initTeacherPage('questions').then(() => {
   loadMarkingBadge();
@@ -867,8 +895,8 @@ function renderQuestions(questions) {
                   ${['A','B','C','D'].map(l => `
                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
                       ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
-                      <span class="text-xs font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
-                      <span class="text-xs text-slate-700">${renderChemText(escHtml(q.options[l] || ''))}</span>
+                      <span class="text-sm font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
+                      <span class="text-sm text-slate-700">${renderChemText(escHtml(q.options[l] || ''))}</span>
                     </div>`).join('')}
                 </div>` : ''}
               ${q.type === 'structured' && q.markingScheme ? `
@@ -944,7 +972,7 @@ async function openQuestionModal(existingQ = null) {
   await populateSetDropdown(preTopicId, existingQ?.setId || currentSetId || '');
 
   setType(existingQ?.type || 'mcq');
-  quill.root.innerHTML = existingQ?.questionText || '';
+  quill.root.innerHTML = renderChemText(existingQ?.questionText || '');
   document.getElementById('qMarks').value  = existingQ?.totalMarks || 1;
   document.getElementById('qScheme').value = existingQ?.markingScheme || '';
   document.getElementById('allowImageUpload').checked = existingQ?.allowImageUpload || false;
@@ -1598,10 +1626,10 @@ function insertNuclideInOpt() {
 }
 
 function insertNuclideInEditor() {
-  showNuclideDialog(shorthand => {
+  showNuclideDialog((shorthand, mass, atomic) => {
     const range = quill.getSelection(true) || { index: quill.getLength() };
-    quill.insertText(range.index, shorthand, Quill.sources.USER);
-    quill.setSelection(range.index + shorthand.length);
+    quill.insertEmbed(range.index, 'nuclide', `${mass}|${atomic}`, Quill.sources.USER);
+    quill.setSelection(range.index + 1);
   });
 }
 
@@ -1662,7 +1690,7 @@ function confirmNuclide() {
   if (!mass || !atomic) return;
   const shorthand = `{${mass}|${atomic}}`;
   document.getElementById('nuclideDialog').remove();
-  if (window._ndOnInsert) window._ndOnInsert(shorthand);
+  if (window._ndOnInsert) window._ndOnInsert(shorthand, mass, atomic);
 }
 </script>
 </body>
