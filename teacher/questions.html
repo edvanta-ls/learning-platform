@@ -201,7 +201,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
-          <span id="qEditorUploadMsg" class="text-xs text-indigo-500">Compressing image…</span>
+          <span id="qEditorUploadMsg" class="text-xs text-indigo-500">Processing image…</span>
         </div>
         <div id="qEditorUploadErr" class="hidden mt-1 text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg"></div>
       </div>
@@ -529,8 +529,31 @@ async function handleQuillPaste(e) {
   }
 }
 
-async function compressImage(file, maxWidth = 1400, quality = 0.82) {
-  return new Promise(resolve => {
+// Compress image and embed as base64 data URL directly in Quill.
+// No Firebase Storage needed — compressed images are ~40-60 KB each.
+async function uploadToQuill(file) {
+  const uploading = document.getElementById('qEditorUploading');
+  const msgEl     = document.getElementById('qEditorUploadMsg');
+  const errEl     = document.getElementById('qEditorUploadErr');
+  uploading.classList.remove('hidden');
+  errEl.classList.add('hidden');
+  msgEl.textContent = 'Compressing image…';
+  try {
+    const dataUrl = await compressToDataUrl(file, 1000, 0.75);
+    const range = quill.getSelection(true);
+    const idx = range ? range.index : quill.getLength();
+    quill.insertEmbed(idx, 'image', dataUrl, Quill.sources.USER);
+    quill.setSelection(idx + 1);
+  } catch (err) {
+    errEl.textContent = 'Image insert failed: ' + err.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    uploading.classList.add('hidden');
+  }
+}
+
+function compressToDataUrl(file, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -540,47 +563,11 @@ async function compressImage(file, maxWidth = 1400, quality = 0.82) {
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', quality);
+      resolve(canvas.toDataURL('image/jpeg', quality));
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
     img.src = url;
   });
-}
-
-async function uploadToQuill(file) {
-  const uploading = document.getElementById('qEditorUploading');
-  const msgEl     = document.getElementById('qEditorUploadMsg');
-  const errEl     = document.getElementById('qEditorUploadErr');
-  uploading.classList.remove('hidden');
-  errEl.classList.add('hidden');
-  try {
-    let toUpload = file;
-    if (file.size > 300 * 1024) {
-      msgEl.textContent = 'Compressing image…';
-      toUpload = await compressImage(file);
-    }
-    msgEl.textContent = 'Uploading 0%';
-    const ref  = storage.ref(`exam-images/questions/${Date.now()}.jpg`);
-    const task = ref.put(toUpload, { contentType: 'image/jpeg' });
-    task.on('state_changed', snap => {
-      const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-      msgEl.textContent = `Uploading ${pct}%`;
-    });
-    await task;
-    const url = await ref.getDownloadURL();
-    const range = quill.getSelection(true);
-    const idx = range ? range.index : quill.getLength();
-    quill.insertEmbed(idx, 'image', url, Quill.sources.USER);
-    quill.setSelection(idx + 1);
-  } catch (err) {
-    const hint = err.code === 'storage/unauthorized'
-      ? 'Firebase Storage rules are blocking uploads. Go to Firebase Console → Storage → Rules and allow exam-images/.'
-      : (err.message || 'Unknown error');
-    errEl.textContent = 'Upload failed: ' + hint;
-    errEl.classList.remove('hidden');
-  } finally {
-    uploading.classList.add('hidden');
-  }
 }
 
 // ── Topics ────────────────────────────────────────────────────────
