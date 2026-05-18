@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChemExam — My Exams</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100">
+
+  <!-- Top nav -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.318A3.5 3.5 0 0112 19.5a3.5 3.5 0 01-2.474-1.026l-.347-.318z"/>
+          </svg>
+        </div>
+        <span class="font-bold text-slate-800">ChemExam</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex rounded-xl border border-slate-200 text-sm overflow-hidden">
+          <button id="tabAvailable" onclick="switchTab('available')"
+            class="px-4 py-2 bg-indigo-600 text-white font-medium">Available</button>
+          <button id="tabResults" onclick="switchTab('results')"
+            class="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 font-medium">My Results</button>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <p id="studentName" class="text-sm font-medium text-slate-800"></p>
+            <p id="studentEmail" class="text-xs text-slate-400"></p>
+          </div>
+          <button onclick="auth.signOut().then(() => window.location.href='../index.html')"
+            class="text-slate-400 hover:text-red-500 transition-colors" title="Sign out">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-5xl mx-auto px-6 py-8">
+    <!-- Welcome banner -->
+    <div id="welcomeBanner" class="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-2xl p-6 text-white mb-8 hidden">
+      <h2 id="welcomeText" class="text-xl font-bold"></h2>
+      <p class="text-indigo-200 text-sm mt-1">Complete your assigned chemistry papers below.</p>
+    </div>
+
+    <!-- Content area -->
+    <div id="contentArea">
+      <div class="text-center py-12 text-slate-400">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Results Modal -->
+  <div id="resultsModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl my-8">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <h3 id="resultsTitle" class="text-lg font-semibold text-slate-800">Results</h3>
+        <button onclick="document.getElementById('resultsModal').classList.add('hidden')"
+          class="text-slate-400 hover:text-slate-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="resultsContent" class="p-6 space-y-4"></div>
+    </div>
+  </div>
+
+<script>
+  let currentUser = null;
+  let currentUserData = null;
+  let currentTab = 'available';
+  let submittedPaperIds = new Set();
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) { window.location.href = '../index.html'; return; }
+
+    const snap = await db.collection('exam_users').doc(user.uid).get();
+    if (!snap.exists || snap.data().role !== 'student') {
+      window.location.href = '../index.html'; return;
+    }
+
+    currentUser     = user;
+    currentUserData = snap.data();
+
+    document.getElementById('studentName').textContent  = currentUserData.name || '';
+    document.getElementById('studentEmail').textContent = user.email;
+    const wb = document.getElementById('welcomeBanner');
+    document.getElementById('welcomeText').textContent = `Welcome back, ${currentUserData.name?.split(' ')[0] || 'student'}!`;
+    wb.classList.remove('hidden');
+
+    loadAvailablePapers();
+  });
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabAvailable').className = `px-4 py-2 font-medium ${tab === 'available' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
+    document.getElementById('tabResults').className   = `px-4 py-2 font-medium ${tab === 'results'   ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
+    if (tab === 'available') loadAvailablePapers();
+    else loadResults();
+  }
+
+  async function loadAvailablePapers() {
+    const area = document.getElementById('contentArea');
+    area.innerHTML = '<div class="text-center py-12 text-slate-400">Loading…</div>';
+
+    // Get student's submissions to know which papers they've done
+    const subSnap = await db.collection('exam_submissions')
+      .where('studentId', '==', currentUser.uid).get();
+    submittedPaperIds = new Set(subSnap.docs.map(d => d.data().paperId));
+
+    // Get assigned papers
+    const papersSnap = await db.collection('exam_papers')
+      .where('status', '==', 'published')
+      .where('assignedTo', 'array-contains', currentUser.uid).get();
+
+    if (papersSnap.empty) {
+      area.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400">No papers assigned to you yet. Check back soon!</p></div>';
+      return;
+    }
+
+    const papers = papersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const pending   = papers.filter(p => !submittedPaperIds.has(p.id));
+    const completed = papers.filter(p =>  submittedPaperIds.has(p.id));
+
+    let html = '';
+    if (pending.length > 0) {
+      html += `<h3 class="font-semibold text-slate-600 text-sm uppercase tracking-wide mb-3">To do (${pending.length})</h3>
+        <div class="space-y-3 mb-8">${pending.map(renderPaperCard).join('')}</div>`;
+    }
+    if (completed.length > 0) {
+      html += `<h3 class="font-semibold text-slate-600 text-sm uppercase tracking-wide mb-3">Completed (${completed.length})</h3>
+        <div class="space-y-3">${completed.map(p => renderPaperCard(p, true)).join('')}</div>`;
+    }
+    area.innerHTML = html;
+  }
+
+  function renderPaperCard(p, done = false) {
+    return `
+      <div class="bg-white rounded-2xl shadow-sm border ${done ? 'border-slate-100' : 'border-indigo-100'} p-5 flex items-center justify-between">
+        <div>
+          <p class="font-semibold text-slate-800">${p.title}</p>
+          <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+            <span>${p.questionIds?.length || 0} questions</span>
+            <span>${p.totalMarks || 0} marks</span>
+            ${p.duration ? `<span>⏱ ${p.duration} min</span>` : ''}
+          </div>
+        </div>
+        ${done
+          ? `<span class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>Submitted</span>`
+          : `<a href="exam.html?paperId=${p.id}"
+              class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+              Start Exam
+            </a>`}
+      </div>`;
+  }
+
+  async function loadResults() {
+    const area = document.getElementById('contentArea');
+    area.innerHTML = '<div class="text-center py-12 text-slate-400">Loading…</div>';
+
+    const snap = await db.collection('exam_submissions')
+      .where('studentId', '==', currentUser.uid)
+      .orderBy('submittedAt', 'desc').get();
+
+    if (snap.empty) {
+      area.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400">No submissions yet.</p></div>';
+      return;
+    }
+
+    area.innerHTML = '<div class="space-y-3">' + snap.docs.map(doc => {
+      const d    = doc.data();
+      const date = d.submittedAt?.toDate().toLocaleDateString() || '—';
+      const isMarked = d.status === 'marked';
+      const pct  = isMarked ? Math.round((d.totalAwarded / d.totalPossible) * 100) : null;
+      return `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center justify-between">
+          <div>
+            <p class="font-semibold text-slate-800">${d.paperTitle || 'Paper'}</p>
+            <p class="text-xs text-slate-400 mt-0.5">Submitted ${date}</p>
+            ${isMarked
+              ? `<div class="flex items-center gap-2 mt-2">
+                  <div class="flex-1 h-2 bg-slate-100 rounded-full w-32">
+                    <div class="h-2 rounded-full ${pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'}"
+                      style="width:${pct}%"></div>
+                  </div>
+                  <span class="text-sm font-bold text-slate-700">${d.totalAwarded}/${d.totalPossible} (${pct}%)</span>
+                </div>`
+              : '<p class="text-xs text-amber-600 mt-1 font-medium">Awaiting marking</p>'}
+          </div>
+          ${isMarked
+            ? `<button onclick="showResults('${doc.id}')"
+                class="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">
+                View Feedback
+              </button>`
+            : ''}
+        </div>`;
+    }).join('') + '</div>';
+  }
+
+  async function showResults(submissionId) {
+    const snap = await db.collection('exam_submissions').doc(submissionId).get();
+    const d    = snap.data();
+    const paper = await db.collection('exam_papers').doc(d.paperId).get();
+    const qIds  = paper.data()?.questionIds || [];
+    const qSnaps = await Promise.all(qIds.map(id => db.collection('exam_questions').doc(id).get()));
+    const qMap  = {};
+    qSnaps.forEach(s => { if (s.exists) qMap[s.id] = { id: s.id, ...s.data() }; });
+
+    document.getElementById('resultsTitle').textContent = `${d.paperTitle} — Results`;
+
+    const answers = d.answers || {};
+    const sMarks  = d.structuredMarks || {};
+    let html = `
+      <div class="flex items-center gap-4 mb-4 p-4 bg-indigo-50 rounded-2xl">
+        <div class="text-center">
+          <p class="text-2xl font-bold text-indigo-700">${d.totalAwarded}</p>
+          <p class="text-xs text-indigo-500">/ ${d.totalPossible} marks</p>
+        </div>
+        <div class="flex-1 h-3 bg-indigo-100 rounded-full">
+          <div class="h-3 rounded-full bg-indigo-500" style="width:${Math.round((d.totalAwarded/d.totalPossible)*100)}%"></div>
+        </div>
+        <p class="text-xl font-bold text-indigo-700">${Math.round((d.totalAwarded/d.totalPossible)*100)}%</p>
+      </div>`;
+
+    Object.entries(answers).forEach(([qId, answer], idx) => {
+      const q = qMap[qId];
+      if (!q) return;
+      if (q.type === 'mcq') {
+        const correct = answer.answer === q.correctAnswer;
+        html += `
+          <div class="rounded-xl border p-4 ${correct ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}">
+            <p class="text-xs font-semibold mb-1 ${correct ? 'text-emerald-600' : 'text-red-600'} uppercase tracking-wide">
+              Q${idx+1} MCQ · ${correct ? '✓ Correct' : '✗ Incorrect'} · ${correct ? q.totalMarks : 0}/${q.totalMarks} marks
+            </p>
+            <p class="text-sm text-slate-800">${q.questionText}</p>
+            ${!correct ? `<p class="text-xs mt-2 text-red-600">Your answer: ${answer.answer || '—'} · Correct: ${q.correctAnswer}</p>` : ''}
+          </div>`;
+      } else {
+        const m = sMarks[qId];
+        html += `
+          <div class="rounded-xl border border-slate-200 p-4">
+            <p class="text-xs font-semibold mb-1 text-purple-600 uppercase tracking-wide">
+              Q${idx+1} Structured · ${m?.awarded ?? '?'}/${q.totalMarks} marks
+            </p>
+            <p class="text-sm text-slate-800 mb-2">${q.questionText}</p>
+            <div class="bg-slate-50 rounded-lg p-3 mb-2">
+              <p class="text-xs text-slate-500 mb-1">Your answer:</p>
+              <p class="text-sm text-slate-700 whitespace-pre-wrap">${answer.answer || '—'}</p>
+            </div>
+            ${m?.feedback ? `
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-xs text-blue-600 font-semibold mb-1">Teacher feedback:</p>
+                <p class="text-sm text-slate-700">${m.feedback}</p>
+              </div>` : ''}
+          </div>`;
+      }
+    });
+
+    document.getElementById('resultsContent').innerHTML = html;
+    document.getElementById('resultsModal').classList.remove('hidden');
+  }
+</script>
+</body>
+</html>

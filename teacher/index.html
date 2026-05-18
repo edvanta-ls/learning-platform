@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChemExam — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/teacher-nav.js"></script>
+</head>
+<body class="bg-slate-100">
+<div class="flex h-screen">
+  <aside id="teacher-sidebar" class="w-64 flex-shrink-0 hidden md:block"></aside>
+
+  <main class="flex-1 overflow-auto">
+    <!-- Top bar -->
+    <div class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-slate-800">Dashboard</h2>
+        <p id="greeting" class="text-slate-500 text-sm mt-0.5"></p>
+      </div>
+      <button onclick="document.getElementById('settingsModal').classList.remove('hidden')"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Settings
+      </button>
+    </div>
+
+    <div class="p-8">
+      <!-- Stats row -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <p class="text-slate-500 text-sm">Students</p>
+          <p id="stat-students" class="text-3xl font-bold text-slate-800 mt-1">—</p>
+          <a href="students.html" class="text-indigo-600 text-xs font-medium mt-2 inline-block hover:underline">Manage →</a>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <p class="text-slate-500 text-sm">Questions</p>
+          <p id="stat-questions" class="text-3xl font-bold text-slate-800 mt-1">—</p>
+          <a href="questions.html" class="text-indigo-600 text-xs font-medium mt-2 inline-block hover:underline">View bank →</a>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <p class="text-slate-500 text-sm">Published Papers</p>
+          <p id="stat-papers" class="text-3xl font-bold text-slate-800 mt-1">—</p>
+          <a href="papers.html" class="text-indigo-600 text-xs font-medium mt-2 inline-block hover:underline">Manage →</a>
+        </div>
+        <div class="bg-amber-50 rounded-2xl p-5 shadow-sm border border-amber-100">
+          <p class="text-amber-700 text-sm">Pending Marking</p>
+          <p id="stat-pending" class="text-3xl font-bold text-amber-700 mt-1">—</p>
+          <a href="marking.html" class="text-amber-600 text-xs font-medium mt-2 inline-block hover:underline">Mark now →</a>
+        </div>
+      </div>
+
+      <!-- Recent Submissions -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="font-semibold text-slate-800">Recent Submissions</h3>
+          <a href="marking.html" class="text-indigo-600 text-sm font-medium hover:underline">View all</a>
+        </div>
+        <div id="recentList" class="divide-y divide-slate-50">
+          <div class="px-6 py-8 text-center text-slate-400 text-sm">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-semibold text-slate-800">Settings</h3>
+      <button onclick="document.getElementById('settingsModal').classList.add('hidden')"
+        class="text-slate-400 hover:text-slate-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Claude API Key (for AI marking)</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-…"
+          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm font-mono">
+        <p class="text-xs text-slate-400 mt-1">Stored in your browser only. Used for AI-assisted marking.</p>
+      </div>
+      <button onclick="saveSettings()"
+        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition-colors">
+        Save Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  initTeacherPage('dashboard').then(({ user }) => {
+    document.getElementById('greeting').textContent =
+      `Good ${getTimeOfDay()}, ${user.email.split('@')[0]}`;
+    loadMarkingBadge();
+    loadStats();
+    loadRecent();
+    // Pre-fill API key if set
+    const saved = localStorage.getItem('exam_claude_api_key');
+    if (saved) document.getElementById('apiKeyInput').value = saved;
+  });
+
+  function getTimeOfDay() {
+    const h = new Date().getHours();
+    return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  }
+
+  function saveSettings() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (key) localStorage.setItem('exam_claude_api_key', key);
+    else localStorage.removeItem('exam_claude_api_key');
+    document.getElementById('settingsModal').classList.add('hidden');
+  }
+
+  async function loadStats() {
+    const [students, questions, papers, pending] = await Promise.all([
+      db.collection('exam_whitelist').where('registered', '==', true).get(),
+      db.collection('exam_questions').get(),
+      db.collection('exam_papers').where('status', '==', 'published').get(),
+      db.collection('exam_submissions').where('status', '==', 'submitted').get(),
+    ]);
+    document.getElementById('stat-students').textContent  = students.size;
+    document.getElementById('stat-questions').textContent = questions.size;
+    document.getElementById('stat-papers').textContent    = papers.size;
+    document.getElementById('stat-pending').textContent   = pending.size;
+  }
+
+  async function loadRecent() {
+    const snap = await db.collection('exam_submissions')
+      .orderBy('submittedAt', 'desc').limit(8).get();
+    const list = document.getElementById('recentList');
+    if (snap.empty) {
+      list.innerHTML = '<div class="px-6 py-8 text-center text-slate-400 text-sm">No submissions yet.</div>';
+      return;
+    }
+    list.innerHTML = snap.docs.map(doc => {
+      const d = doc.data();
+      const date = d.submittedAt ? d.submittedAt.toDate().toLocaleDateString() : '—';
+      const badge = d.status === 'marked'
+        ? '<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Marked</span>'
+        : '<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Pending</span>';
+      return `
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
+          <div>
+            <p class="font-medium text-slate-800 text-sm">${d.studentName || 'Student'}</p>
+            <p class="text-slate-500 text-xs mt-0.5">${d.paperTitle || 'Untitled paper'} · ${date}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            ${badge}
+            ${d.status !== 'marked' ? `<a href="marking.html?id=${doc.id}" class="text-indigo-600 text-xs font-medium hover:underline">Mark</a>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChemExam — Marking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/teacher-nav.js"></script>
+</head>
+<body class="bg-slate-100">
+<div class="flex h-screen">
+  <aside id="teacher-sidebar" class="w-64 flex-shrink-0 hidden md:block"></aside>
+  <main class="flex-1 overflow-auto">
+    <div class="bg-white border-b border-slate-200 px-8 py-5 flex items-center gap-4">
+      <h2 class="text-xl font-bold text-slate-800">Marking</h2>
+      <div class="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
+        <button id="tabPending" onclick="switchTab('pending')"
+          class="px-4 py-2 bg-indigo-600 text-white font-medium">Pending</button>
+        <button id="tabMarked" onclick="switchTab('marked')"
+          class="px-4 py-2 bg-white text-slate-600 hover:bg-slate-50 font-medium">Marked</button>
+      </div>
+    </div>
+
+    <div class="p-8">
+      <div id="submissionsList" class="space-y-3">
+        <div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm shadow-sm">Loading…</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Marking Interface Modal -->
+<div id="markingModal" class="hidden fixed inset-0 bg-black/60 flex items-start justify-center z-50 p-4 overflow-y-auto">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
+      <div>
+        <h3 id="markingTitle" class="text-lg font-semibold text-slate-800"></h3>
+        <p id="markingSubtitle" class="text-slate-500 text-sm"></p>
+      </div>
+      <button onclick="closeMarking()" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div id="markingContent" class="p-6 space-y-6"></div>
+    <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+      <div class="text-sm text-slate-600">
+        Total awarded: <span id="totalAwarded" class="font-bold text-slate-800">0</span>
+        / <span id="totalPossible" class="font-bold text-slate-800">0</span> marks
+      </div>
+      <button onclick="finalizeMarking()"
+        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors text-sm">
+        Save &amp; Mark Complete
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentTab    = 'pending';
+  let currentSubDoc = null;
+  let markingData   = {};   // {questionId: {awarded, feedback}}
+  let questionsMap  = {};   // {questionId: questionData}
+
+  initTeacherPage('marking').then(() => {
+    loadMarkingBadge();
+    // Open submission directly if ?id= param set
+    const urlId = new URLSearchParams(window.location.search).get('id');
+    if (urlId) openMarking(urlId);
+    loadSubmissions('pending');
+  });
+
+  function switchTab(tab) {
+    currentTab = tab;
+    ['pending','marked'].forEach(t => {
+      document.getElementById(`tab${t.charAt(0).toUpperCase()+t.slice(1)}`).className =
+        `px-4 py-2 font-medium ${t === tab ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`;
+    });
+    loadSubmissions(tab);
+  }
+
+  async function loadSubmissions(status) {
+    const el   = document.getElementById('submissionsList');
+    el.innerHTML = '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm shadow-sm">Loading…</div>';
+    const snap = await db.collection('exam_submissions')
+      .where('status', '==', status)
+      .orderBy('submittedAt', 'desc').get();
+
+    if (snap.empty) {
+      el.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center text-slate-400 text-sm shadow-sm">
+        No ${status} submissions.</div>`;
+      return;
+    }
+
+    el.innerHTML = snap.docs.map(doc => {
+      const d = doc.data();
+      const date = d.submittedAt?.toDate().toLocaleString() || '—';
+      const hasStructured = Object.values(d.answers || {}).some(a => a.type === 'structured');
+      return `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center justify-between hover:border-indigo-200 transition-colors">
+          <div>
+            <p class="font-semibold text-slate-800">${d.studentName || 'Student'}</p>
+            <p class="text-slate-500 text-sm">${d.paperTitle || 'Unknown paper'} · ${date}</p>
+            <div class="flex items-center gap-3 mt-1.5">
+              <span class="text-xs text-slate-500">MCQ: ${d.mcqScore ?? '—'}/${d.mcqTotal ?? '—'}</span>
+              ${d.status === 'marked' ? `<span class="text-xs font-semibold text-emerald-600">Total: ${d.totalAwarded}/${d.totalPossible}</span>` : ''}
+              ${hasStructured ? '<span class="text-xs text-purple-600">Has structured questions</span>' : ''}
+            </div>
+          </div>
+          ${status === 'pending' ? `
+            <button onclick="openMarking('${doc.id}')"
+              class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+              Mark
+            </button>` : `
+            <button onclick="openMarking('${doc.id}')"
+              class="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">
+              Review
+            </button>`}
+        </div>`;
+    }).join('');
+  }
+
+  async function openMarking(submissionId) {
+    document.getElementById('markingModal').classList.remove('hidden');
+    document.getElementById('markingContent').innerHTML = '<div class="py-12 text-center text-slate-400">Loading…</div>';
+
+    const subSnap = await db.collection('exam_submissions').doc(submissionId).get();
+    currentSubDoc = { id: submissionId, ...subSnap.data() };
+    markingData   = {};
+
+    // Load questions
+    const paper   = await db.collection('exam_papers').doc(currentSubDoc.paperId).get();
+    const qIds    = paper.data()?.questionIds || [];
+    const qSnaps  = await Promise.all(qIds.map(id => db.collection('exam_questions').doc(id).get()));
+    questionsMap  = {};
+    qSnaps.forEach(s => { if (s.exists) questionsMap[s.id] = { id: s.id, ...s.data() }; });
+
+    document.getElementById('markingTitle').textContent = currentSubDoc.paperTitle || 'Marking';
+    document.getElementById('markingSubtitle').textContent =
+      `${currentSubDoc.studentName} · Submitted ${currentSubDoc.submittedAt?.toDate().toLocaleString() || '—'}`;
+
+    renderMarkingContent();
+  }
+
+  function renderMarkingContent() {
+    const content  = document.getElementById('markingContent');
+    const answers  = currentSubDoc.answers || {};
+    const existing = currentSubDoc.structuredMarks || {};
+    let html = '';
+
+    Object.entries(answers).forEach(([qId, answer], idx) => {
+      const q = questionsMap[qId];
+      if (!q) return;
+      const qNum = idx + 1;
+
+      if (q.type === 'mcq') {
+        const correct  = answer.answer === q.correctAnswer;
+        const awarded  = correct ? (q.totalMarks || 1) : 0;
+        markingData[qId] = { awarded, feedback: correct ? 'Correct' : `Incorrect. Answer: ${q.correctAnswer}` };
+        html += `
+          <div class="rounded-2xl border p-5 ${correct ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide mb-1 ${correct ? 'text-emerald-600' : 'text-red-600'}">
+                  Q${qNum} · MCQ · ${correct ? '✓ Correct' : '✗ Incorrect'}
+                </p>
+                <p class="text-slate-800 text-sm font-medium">${q.questionText}</p>
+                ${q.imageUrl ? `<img src="${q.imageUrl}" class="mt-2 max-h-32 rounded-xl border border-slate-200 object-contain">` : ''}
+              </div>
+              <span class="flex-shrink-0 font-bold text-lg ${correct ? 'text-emerald-600' : 'text-red-600'}">
+                ${awarded}/${q.totalMarks || 1}
+              </span>
+            </div>
+            <p class="text-sm mt-3 ${correct ? 'text-emerald-700' : 'text-red-700'}">
+              Student answered: <strong>${answer.answer || '(no answer)'}</strong>
+              ${!correct ? ` · Correct: <strong>${q.correctAnswer}</strong> — ${q.options?.[q.correctAnswer] || ''}` : ''}
+            </p>
+          </div>`;
+      } else {
+        // Structured question
+        const prev = existing[qId] || {};
+        markingData[qId] = { awarded: prev.awarded ?? 0, feedback: prev.feedback || '' };
+        html += `
+          <div class="rounded-2xl border border-slate-200 p-5" id="struct-${qId}">
+            <div class="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-purple-600 mb-1">Q${qNum} · Structured · ${q.totalMarks} marks</p>
+                <p class="text-slate-800 text-sm font-medium">${q.questionText}</p>
+                ${q.imageUrl ? `<img src="${q.imageUrl}" class="mt-2 max-h-40 rounded-xl border border-slate-200 object-contain">` : ''}
+              </div>
+            </div>
+
+            <!-- Marking scheme -->
+            <details class="mb-4">
+              <summary class="text-xs text-indigo-600 font-semibold cursor-pointer hover:underline">View marking scheme</summary>
+              <div class="mt-2 bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-line">${q.markingScheme}</div>
+            </details>
+
+            <!-- Student answer -->
+            <div class="bg-slate-50 rounded-xl p-4 mb-4">
+              <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Student's answer</p>
+              <p class="text-slate-800 text-sm whitespace-pre-wrap">${answer.answer || '(no written answer)'}</p>
+              ${answer.imageUrl ? `
+                <div class="mt-3">
+                  <p class="text-xs text-slate-400 mb-1">Student uploaded:</p>
+                  <img src="${answer.imageUrl}" class="max-h-48 rounded-xl border border-slate-200 object-contain cursor-pointer"
+                    onclick="window.open('${answer.imageUrl}', '_blank')">
+                </div>` : ''}
+            </div>
+
+            <!-- AI Marking -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-semibold text-amber-700 uppercase tracking-wide">AI Marking Assistant</p>
+                <button onclick="aiMark('${qId}')"
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors" id="aiBtn-${qId}">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                  Get AI Suggestion
+                </button>
+              </div>
+              <div id="aiResult-${qId}" class="hidden text-sm text-slate-700"></div>
+            </div>
+
+            <!-- Mark input -->
+            <div class="flex items-center gap-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Marks awarded</label>
+                <div class="flex items-center gap-2">
+                  <input type="number" id="mark-${qId}" min="0" max="${q.totalMarks}"
+                    value="${markingData[qId].awarded}"
+                    onchange="updateMark('${qId}', this.value)"
+                    class="w-20 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold text-lg">
+                  <span class="text-slate-400 font-medium">/ ${q.totalMarks}</span>
+                </div>
+              </div>
+              <div class="flex-1">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Feedback for student</label>
+                <textarea id="feedback-${qId}" rows="2"
+                  onchange="updateFeedback('${qId}', this.value)"
+                  class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
+                  placeholder="Optional: specific feedback for this question…">${markingData[qId].feedback}</textarea>
+              </div>
+            </div>
+          </div>`;
+      }
+    });
+
+    content.innerHTML = html;
+    refreshTotals();
+  }
+
+  function updateMark(qId, val) {
+    const q = questionsMap[qId];
+    const v = Math.min(Math.max(parseInt(val) || 0, 0), q?.totalMarks || 0);
+    markingData[qId].awarded = v;
+    document.getElementById(`mark-${qId}`).value = v;
+    refreshTotals();
+  }
+
+  function updateFeedback(qId, val) {
+    markingData[qId].feedback = val;
+  }
+
+  function refreshTotals() {
+    const total = Object.values(markingData).reduce((s, m) => s + (m.awarded || 0), 0);
+    const possible = Object.values(questionsMap).reduce((s, q) => s + (q?.totalMarks || 1), 0);
+    document.getElementById('totalAwarded').textContent  = total;
+    document.getElementById('totalPossible').textContent = possible;
+  }
+
+  async function aiMark(qId) {
+    const apiKey = localStorage.getItem('exam_claude_api_key');
+    if (!apiKey) {
+      alert('Please set your Claude API key in Dashboard → Settings first.');
+      return;
+    }
+    const q      = questionsMap[qId];
+    const answer = currentSubDoc.answers?.[qId]?.answer || '(no answer given)';
+    const btn    = document.getElementById(`aiBtn-${qId}`);
+    const result = document.getElementById(`aiResult-${qId}`);
+
+    btn.disabled = true; btn.textContent = 'Asking AI…';
+    result.classList.add('hidden');
+
+    const prompt = `You are marking a Chemistry exam question. Evaluate the student's answer against the marking scheme and respond ONLY with valid JSON.
+
+Question: ${q.questionText}
+Total marks: ${q.totalMarks}
+Marking scheme:
+${q.markingScheme}
+
+Student's answer: ${answer}
+
+Respond with this exact JSON format (no other text):
+{"suggestedMarks":NUMBER,"feedback":"FEEDBACK_STRING","breakdown":[{"point":"POINT","awarded":BOOL}]}`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-allow-browser': 'true',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 512,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data   = await res.json();
+      const parsed = JSON.parse(data.content[0].text);
+
+      // Show result
+      const bdHTML = (parsed.breakdown || []).map(b => `
+        <div class="flex items-start gap-2">
+          <span class="${b.awarded ? 'text-emerald-500' : 'text-red-400'} mt-0.5 flex-shrink-0">${b.awarded ? '✓' : '✗'}</span>
+          <span class="text-xs ${b.awarded ? 'text-emerald-700' : 'text-slate-500'}">${b.point}</span>
+        </div>`).join('');
+
+      result.innerHTML = `
+        <div class="flex items-center gap-3 mb-2">
+          <span class="text-xs font-semibold text-amber-700">AI suggests:</span>
+          <span class="text-lg font-bold text-amber-800">${parsed.suggestedMarks}/${q.totalMarks}</span>
+          <button onclick="acceptAI('${qId}', ${parsed.suggestedMarks}, \`${(parsed.feedback||'').replace(/`/g,"'")}\`)"
+            class="ml-auto px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700">
+            Accept suggestion
+          </button>
+        </div>
+        <p class="text-xs text-slate-600 mb-2">${parsed.feedback || ''}</p>
+        <div class="space-y-1">${bdHTML}</div>`;
+      result.classList.remove('hidden');
+
+    } catch (ex) {
+      result.innerHTML = `<p class="text-xs text-red-600">Error: ${ex.message}. Check your API key in Settings.</p>`;
+      result.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Get AI Suggestion';
+    }
+  }
+
+  function acceptAI(qId, marks, feedback) {
+    document.getElementById(`mark-${qId}`).value = marks;
+    document.getElementById(`feedback-${qId}`).value = feedback;
+    updateMark(qId, marks);
+    markingData[qId].feedback = feedback;
+  }
+
+  async function finalizeMarking() {
+    if (!confirm('Save marks and mark this submission as complete?')) return;
+
+    const structuredMarks = {};
+    Object.entries(markingData).forEach(([qId, data]) => {
+      const q = questionsMap[qId];
+      if (q?.type === 'structured') {
+        structuredMarks[qId] = { ...data, total: q.totalMarks || 1 };
+      }
+    });
+
+    const totalAwarded  = Object.values(markingData).reduce((s, m) => s + (m.awarded || 0), 0);
+    const totalPossible = Object.values(questionsMap).reduce((s, q) => s + (q?.totalMarks || 1), 0);
+
+    await db.collection('exam_submissions').doc(currentSubDoc.id).update({
+      structuredMarks,
+      totalAwarded,
+      totalPossible,
+      status: 'marked',
+      markedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+
+    closeMarking();
+    loadSubmissions(currentTab);
+    loadMarkingBadge();
+  }
+
+  function closeMarking() {
+    document.getElementById('markingModal').classList.add('hidden');
+    currentSubDoc = null;
+  }
+</script>
+</body>
+</html>

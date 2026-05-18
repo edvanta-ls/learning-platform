@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChemExam — Students</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/teacher-nav.js"></script>
+</head>
+<body class="bg-slate-100">
+<div class="flex h-screen">
+  <aside id="teacher-sidebar" class="w-64 flex-shrink-0 hidden md:block"></aside>
+  <main class="flex-1 overflow-auto">
+    <div class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between">
+      <h2 class="text-xl font-bold text-slate-800">Students</h2>
+      <button onclick="openAdd()"
+        class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Add Student
+      </button>
+    </div>
+
+    <div class="p-8">
+      <!-- Registration link info -->
+      <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 mb-6 flex items-start gap-4">
+        <svg class="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <p class="text-indigo-800 font-medium text-sm">How students register</p>
+          <p class="text-indigo-700 text-sm mt-1">
+            Add a student's email below, then share the registration link with them:
+            <span id="regLink" class="font-mono bg-indigo-100 px-2 py-0.5 rounded text-xs break-all"></span>
+          </p>
+          <button onclick="copyRegLink()" class="mt-2 text-xs text-indigo-600 font-semibold hover:underline">Copy link</button>
+        </div>
+      </div>
+
+      <!-- Student list -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100">
+        <div class="px-6 py-4 border-b border-slate-100">
+          <input id="searchInput" type="text" placeholder="Search students…" oninput="filterStudents()"
+            class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-slate-800">
+        </div>
+        <div id="studentList" class="divide-y divide-slate-50">
+          <div class="px-6 py-8 text-center text-slate-400 text-sm">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Student Modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-semibold text-slate-800">Add Student</h3>
+      <button onclick="closeAdd()" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Student name</label>
+        <input type="text" id="addName"
+          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+          placeholder="Full name">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Email address</label>
+        <input type="email" id="addEmail"
+          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+          placeholder="student@example.com">
+      </div>
+      <div id="addError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
+      <button onclick="addStudent()"
+        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors">
+        Add to Platform
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Link Copied toast -->
+<div id="toast" class="hidden fixed bottom-6 right-6 bg-slate-800 text-white text-sm px-5 py-3 rounded-xl shadow-xl z-50">
+  Link copied to clipboard!
+</div>
+
+<script>
+  let allStudents = [];
+
+  initTeacherPage('students').then(() => {
+    // Build registration link based on current file location
+    const base = window.location.href.replace(/teacher\/students\.html.*/, '');
+    document.getElementById('regLink').textContent = base + 'register.html';
+    loadMarkingBadge();
+    loadStudents();
+  });
+
+  async function loadStudents() {
+    const snap = await db.collection('exam_whitelist').orderBy('addedAt', 'desc').get();
+    allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderList(allStudents);
+  }
+
+  function renderList(students) {
+    const el = document.getElementById('studentList');
+    if (students.length === 0) {
+      el.innerHTML = '<div class="px-6 py-10 text-center text-slate-400 text-sm">No students added yet. Click "Add Student" to get started.</div>';
+      return;
+    }
+    el.innerHTML = students.map(s => {
+      const badge = s.registered
+        ? '<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">Registered</span>'
+        : '<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">Invited</span>';
+      return `
+        <div class="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
+          <div class="flex items-center gap-4">
+            <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+              ${(s.name || '?').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p class="font-medium text-slate-800 text-sm">${s.name || 'Unknown'}</p>
+              <p class="text-slate-500 text-xs">${s.email}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            ${badge}
+            <button onclick="copyInvite('${s.email}')" class="text-slate-400 hover:text-indigo-600" title="Copy invite link">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+            </button>
+            <button onclick="removeStudent('${s.id}', '${s.name}')" class="text-slate-400 hover:text-red-500" title="Remove student">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function filterStudents() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    renderList(allStudents.filter(s =>
+      (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q)));
+  }
+
+  function openAdd()  { document.getElementById('addModal').classList.remove('hidden'); }
+  function closeAdd() { document.getElementById('addModal').classList.add('hidden'); }
+
+  async function addStudent() {
+    const name  = document.getElementById('addName').value.trim();
+    const email = document.getElementById('addEmail').value.trim().toLowerCase();
+    const errEl = document.getElementById('addError');
+    errEl.classList.add('hidden');
+
+    if (!name || !email) { errEl.textContent = 'Please fill in both fields.'; errEl.classList.remove('hidden'); return; }
+
+    // Check duplicate
+    const existing = await db.collection('exam_whitelist').where('email', '==', email).limit(1).get();
+    if (!existing.empty) {
+      errEl.textContent = 'This email is already on the list.'; errEl.classList.remove('hidden'); return;
+    }
+
+    await db.collection('exam_whitelist').add({
+      name, email,
+      registered: false,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    closeAdd();
+    document.getElementById('addName').value = '';
+    document.getElementById('addEmail').value = '';
+    loadStudents();
+  }
+
+  async function removeStudent(id, name) {
+    if (!confirm(`Remove ${name} from the platform?`)) return;
+    await db.collection('exam_whitelist').doc(id).delete();
+    loadStudents();
+  }
+
+  function copyInvite(email) {
+    const base = window.location.href.replace(/teacher\/students\.html.*/, '');
+    const link = `${base}register.html?email=${encodeURIComponent(email)}`;
+    navigator.clipboard.writeText(link).then(() => showToast('Invite link copied!'));
+  }
+
+  function copyRegLink() {
+    const link = document.getElementById('regLink').textContent;
+    navigator.clipboard.writeText(link).then(() => showToast('Link copied!'));
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    setTimeout(() => t.classList.add('hidden'), 2500);
+  }
+</script>
+</body>
+</html>
