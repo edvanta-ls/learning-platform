@@ -337,12 +337,16 @@
               Download Template
             </button>
           </div>
-          <div onclick="document.getElementById('csvFileInput').click()"
+          <div id="csvDropZone"
+            onclick="document.getElementById('csvFileInput').click()"
+            ondragover="event.preventDefault(); this.classList.add('border-indigo-400','bg-indigo-50')"
+            ondragleave="this.classList.remove('border-indigo-400','bg-indigo-50')"
+            ondrop="handleCsvDrop(event)"
             class="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
             <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <p class="text-slate-400 text-sm">Click to upload CSV file</p>
+            <p class="text-slate-400 text-sm">Click to upload or drag & drop</p>
             <p class="text-slate-300 text-xs mt-1" id="csvFileName">No file chosen</p>
           </div>
           <input type="file" id="csvFileInput" accept=".csv,text/csv" class="hidden" onchange="handleCsvFile(this)">
@@ -1239,9 +1243,22 @@ function downloadCsvTemplate() {
   a.download = 'chemexam_questions_template.csv'; a.click();
 }
 
+function handleCsvDrop(e) {
+  e.preventDefault();
+  document.getElementById('csvDropZone').classList.remove('border-indigo-400','bg-indigo-50');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  document.getElementById('csvFileName').textContent = file.name;
+  processCsvFile(file);
+}
+
 function handleCsvFile(input) {
   const file = input.files[0]; if (!file) return;
   document.getElementById('csvFileName').textContent = file.name;
+  processCsvFile(file);
+}
+
+function processCsvFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
