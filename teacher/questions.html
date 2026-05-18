@@ -4,13 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChemExam — Questions</title>
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="../js/firebase-config.js"></script>
   <script src="../js/teacher-nav.js"></script>
+  <style>
+    /* Quill editor styling */
+    #qTextEditor .ql-container { border-radius: 0 0 12px 12px; border-color: #e2e8f0; font-size: 14px; min-height: 100px; }
+    #qTextEditor .ql-toolbar { border-radius: 12px 12px 0 0; border-color: #e2e8f0; background: #f8fafc; }
+    #qTextEditor .ql-editor { min-height: 100px; color: #1e293b; }
+    #qTextEditor .ql-editor img { max-width: 100%; max-height: 240px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 4px 0; }
+    #qTextEditor .ql-editor.ql-blank::before { color: #94a3b8; font-style: normal; }
+    /* Question cards rich text */
+    .q-text p { margin: 0; } .q-text img { max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 6px; }
+    .q-text strong { font-weight: 600; } .q-text em { font-style: italic; }
+    .q-text sub { font-size: 0.75em; } .q-text sup { font-size: 0.75em; }
+    /* Import image drop zone */
+    #importImgZone.drag-over { border-color: #6366f1; background: #eef2ff; }
+  </style>
 </head>
 <body class="bg-slate-100">
 <div class="flex h-screen overflow-hidden">
@@ -18,13 +34,11 @@
   <!-- Teacher nav -->
   <aside id="teacher-sidebar" class="w-64 flex-shrink-0 hidden md:block"></aside>
 
-  <!-- Topic / Set tree panel -->
+  <!-- Topic tree panel -->
   <div class="w-56 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
     <div class="px-4 py-3 border-b border-slate-100">
       <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Topics</p>
     </div>
-
-    <!-- All Questions row -->
     <button id="rowAll" onclick="selectView(null, null)"
       class="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium w-full text-left transition-colors bg-indigo-50 text-indigo-700">
       <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,11 +46,7 @@
       </svg>
       <span class="truncate">All Questions</span>
     </button>
-
-    <!-- Dynamic tree -->
     <div class="flex-1 overflow-y-auto" id="topicTree"></div>
-
-    <!-- New Topic -->
     <div class="p-3 border-t border-slate-100">
       <button onclick="openTopicModal(null)"
         class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300
@@ -61,13 +71,22 @@
           <option value="structured">Structured</option>
         </select>
       </div>
-      <button onclick="openQuestionModal()"
-        class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition-colors flex-shrink-0">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-        </svg>
-        Add Question
-      </button>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button onclick="openImportModal()"
+          class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 text-sm font-semibold transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          Import
+        </button>
+        <button onclick="openQuestionModal()"
+          class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add Question
+        </button>
+      </div>
     </div>
     <div class="flex-1 overflow-auto p-6">
       <div id="questionList">
@@ -170,33 +189,14 @@
           class="w-32 px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm">
       </div>
 
-      <!-- Question text -->
+      <!-- Rich text editor -->
       <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Question text</label>
-        <textarea id="qText" rows="3"
-          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm resize-none"
-          placeholder="Enter the question here…"></textarea>
-      </div>
-
-      <!-- Question image -->
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">Question image (optional)</label>
-        <div id="imgDropZone" onclick="document.getElementById('qImage').click()"
-          class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
-          <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
-          <p class="text-slate-400 text-sm">Click to upload image</p>
-          <p class="text-slate-300 text-xs mt-1">PNG, JPG, GIF up to 10 MB</p>
-        </div>
-        <input type="file" id="qImage" accept="image/*" class="hidden" onchange="previewImage(this)">
-        <div id="imgPreview" class="hidden mt-3 relative">
-          <img id="previewImg" class="rounded-xl max-h-48 object-contain border border-slate-200">
-          <button type="button" onclick="clearImage()"
-            class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600">&#x2715;</button>
-        </div>
-        <input type="hidden" id="existingImageUrl">
+        <label class="block text-sm font-medium text-slate-700 mb-1">
+          Question text
+          <span class="text-xs text-slate-400 font-normal ml-2">Bold · Italic · Sub/Superscript · Paste screenshot directly</span>
+        </label>
+        <div id="qTextEditor"></div>
+        <div id="qEditorUploading" class="hidden mt-1 text-xs text-indigo-500">Uploading image…</div>
       </div>
 
       <!-- MCQ options -->
@@ -233,8 +233,8 @@
           <label class="block text-sm font-medium text-slate-700 mb-1">Marking scheme</label>
           <textarea id="qScheme" rows="5"
             class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm resize-none"
-            placeholder="List each marking point on a new line, e.g.:&#10;&#8226; Covalent bond formed between non-metals (1 mark)&#10;&#8226; Shared pair of electrons (1 mark)"></textarea>
-          <p class="text-xs text-slate-400 mt-1">This is used by AI to suggest marks. Be specific per point.</p>
+            placeholder="List each marking point on a new line…"></textarea>
+          <p class="text-xs text-slate-400 mt-1">Used by AI to suggest marks.</p>
         </div>
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" id="allowImageUpload" class="w-4 h-4 text-indigo-600 rounded">
@@ -243,7 +243,6 @@
       </div>
 
       <div id="qError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
-
       <div class="flex gap-3 pt-2">
         <button onclick="closeQuestionModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 text-sm">Cancel</button>
         <button onclick="saveQuestion()" id="saveBtn" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 text-sm transition-colors">Save Question</button>
@@ -252,10 +251,209 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     IMPORT MODAL
+═══════════════════════════════════════════════════════════ -->
+<div id="importModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <h3 class="text-lg font-semibold text-slate-800">Import Questions</h3>
+      <button onclick="closeImportModal()" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-100 px-6">
+      <button id="importTabCsv" onclick="switchImportTab('csv')"
+        class="px-4 py-3 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-700 transition-colors">
+        CSV Upload
+      </button>
+      <button id="importTabText" onclick="switchImportTab('text')"
+        class="px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors">
+        Paste Text
+      </button>
+      <button id="importTabImg" onclick="switchImportTab('img')"
+        class="px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5">
+        Screenshot / Image
+        <span class="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs">AI</span>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-5">
+
+      <!-- CSV Tab -->
+      <div id="importPanelCsv">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-slate-600">Upload a CSV file. Each row = one question.</p>
+            <button onclick="downloadCsvTemplate()"
+              class="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download Template
+            </button>
+          </div>
+          <div onclick="document.getElementById('csvFileInput').click()"
+            class="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+            <svg class="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="text-slate-400 text-sm">Click to upload CSV file</p>
+            <p class="text-slate-300 text-xs mt-1" id="csvFileName">No file chosen</p>
+          </div>
+          <input type="file" id="csvFileInput" accept=".csv,text/csv" class="hidden" onchange="handleCsvFile(this)">
+          <div class="bg-slate-50 rounded-xl p-4 text-xs text-slate-500 space-y-1">
+            <p class="font-semibold text-slate-600 mb-2">Expected columns:</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">type</code> — mcq or structured</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">question</code> — question text</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">marks</code> — number (default 1)</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">optA optB optC optD</code> — options (MCQ only)</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">correct</code> — A/B/C/D (MCQ only)</p>
+            <p><code class="bg-white px-1.5 py-0.5 rounded border border-slate-200">marking_scheme</code> — scheme text (structured only)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Text Tab -->
+      <div id="importPanelText" class="hidden">
+        <div class="space-y-3">
+          <p class="text-sm text-slate-600">Paste questions in this format — one blank line between questions:</p>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-500 font-mono leading-relaxed">
+            1. Which two atoms are isotopes?<br>
+            A. Q and R<br>
+            B. Q and T<br>
+            C. R and S<br>
+            D. S and T<br>
+            Answer: A<br>
+            <br>
+            2. Which atom has twice as many neutrons as protons?<br>
+            A. 1H<br>
+            B. 2H<br>
+            C. 3H<br>
+            D. 4He<br>
+            Answer: C
+          </div>
+          <textarea id="importTextarea" rows="10"
+            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm resize-none font-mono"
+            placeholder="Paste your questions here…"></textarea>
+          <button onclick="parseTextQuestions()"
+            class="px-4 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors">
+            Parse Questions
+          </button>
+        </div>
+      </div>
+
+      <!-- Image / Screenshot Tab -->
+      <div id="importPanelImg" class="hidden">
+        <div class="space-y-4">
+          <p class="text-sm text-slate-600">
+            Paste a screenshot <kbd class="px-1.5 py-0.5 text-xs bg-slate-100 border border-slate-300 rounded">Ctrl+V</kbd>
+            or upload an image — Claude AI will extract the questions automatically.
+          </p>
+          <!-- Paste zone -->
+          <div id="importImgZone"
+            class="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center transition-all cursor-pointer"
+            onclick="document.getElementById('importImgFile').click()"
+            ondragover="event.preventDefault(); this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleImgDrop(event)">
+            <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <p class="text-slate-400 text-sm font-medium">Ctrl+V to paste screenshot, or click to upload</p>
+            <p class="text-slate-300 text-xs mt-1">PNG, JPG accepted</p>
+          </div>
+          <input type="file" id="importImgFile" accept="image/*" class="hidden" onchange="handleImgFileSelect(this)">
+          <!-- Preview of uploaded image -->
+          <div id="importImgPreviewWrap" class="hidden space-y-3">
+            <img id="importImgPreview" class="max-h-64 rounded-xl border border-slate-200 object-contain w-full">
+            <div class="flex gap-3">
+              <button onclick="extractQuestionsFromImage()"
+                id="extractBtn"
+                class="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.318A3.5 3.5 0 0112 19.5a3.5 3.5 0 01-2.474-1.026l-.347-.318z"/>
+                </svg>
+                Extract Questions with AI
+              </button>
+              <button onclick="clearImportImg()" class="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div id="extractStatus" class="hidden text-sm text-indigo-600 flex items-center gap-2">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            AI is reading the image…
+          </div>
+          <div id="extractError" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
+        </div>
+      </div>
+
+      <!-- Assign + Preview (shared across all tabs) -->
+      <div id="importAssignSection" class="hidden border-t border-slate-100 pt-5 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Assign to Topic</label>
+            <select id="importTopicSel" onchange="onImportTopicChange()"
+              class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm bg-white">
+              <option value="">Select topic…</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Question Set</label>
+            <select id="importSetSel"
+              class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 text-sm bg-white">
+              <option value="">Select set…</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Preview table -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-semibold text-slate-700" id="importPreviewLabel">0 questions ready to import</p>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-semibold">
+                <tr>
+                  <th class="px-3 py-2.5 text-left w-8">#</th>
+                  <th class="px-3 py-2.5 text-left w-20">Type</th>
+                  <th class="px-3 py-2.5 text-left">Question</th>
+                  <th class="px-3 py-2.5 text-left w-16">Marks</th>
+                  <th class="px-3 py-2.5 text-left w-16">Correct</th>
+                  <th class="px-3 py-2.5 w-8"></th>
+                </tr>
+              </thead>
+              <tbody id="importPreviewBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="importErr" class="hidden text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl"></div>
+        <div class="flex gap-3">
+          <button onclick="closeImportModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 text-sm">Cancel</button>
+          <button onclick="executeImport()" id="importBtn"
+            class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 text-sm transition-colors">
+            Import Questions
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── State ─────────────────────────────────────────────────────────
 let allTopics      = [];
-let setsCache      = {};          // topicId → array of set objects
+let setsCache      = {};
 let expandedTopics = new Set();
 let currentTopicId = null;
 let currentSetId   = null;
@@ -265,12 +463,81 @@ let editingTopicId = null;
 let editingSetId   = null;
 let setModalTopicId = null;
 let currentType    = 'mcq';
+let quill          = null;
+let importedRows   = [];      // parsed questions waiting to import
+let importImgData  = null;    // { base64, mediaType } for AI extraction
+let currentImportTab = 'csv';
 
 // ── Boot ──────────────────────────────────────────────────────────
 initTeacherPage('questions').then(() => {
   loadMarkingBadge();
+
+  // Init Quill
+  quill = new Quill('#qTextEditor', {
+    theme: 'snow',
+    modules: {
+      toolbar: {
+        container: [
+          ['bold', 'italic', 'underline'],
+          [{ script: 'sub' }, { script: 'super' }],
+          ['image'],
+          ['clean']
+        ],
+        handlers: { image: quillImageHandler }
+      }
+    },
+    placeholder: 'Enter the question here…'
+  });
+
+  // Paste screenshot directly into editor
+  quill.root.addEventListener('paste', handleQuillPaste, true);
+
+  // Paste screenshot into import image zone
+  document.addEventListener('paste', handleGlobalPaste);
+
   loadTopics().then(() => loadQuestionsForView());
 });
+
+// ── Quill image support ───────────────────────────────────────────
+function quillImageHandler() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    await uploadToQuill(file);
+  };
+  input.click();
+}
+
+async function handleQuillPaste(e) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault(); e.stopPropagation();
+      await uploadToQuill(item.getAsFile());
+      break;
+    }
+  }
+}
+
+async function uploadToQuill(file) {
+  const uploading = document.getElementById('qEditorUploading');
+  uploading.classList.remove('hidden');
+  try {
+    const ref = storage.ref(`exam-images/questions/${Date.now()}_${file.name || 'img.png'}`);
+    await ref.put(file);
+    const url = await ref.getDownloadURL();
+    const range = quill.getSelection(true);
+    quill.insertEmbed(range ? range.index : quill.getLength(), 'image', url, Quill.sources.USER);
+    quill.setSelection((range ? range.index : quill.getLength()) + 1);
+  } catch (err) {
+    console.error('Quill image upload failed:', err);
+  } finally {
+    uploading.classList.add('hidden');
+  }
+}
 
 // ── Topics ────────────────────────────────────────────────────────
 async function loadTopics() {
@@ -286,11 +553,9 @@ async function fetchSets(topicId) {
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
-// ── Tree rendering ────────────────────────────────────────────────
+// ── Tree ──────────────────────────────────────────────────────────
 function renderTopicTree() {
   const tree = document.getElementById('topicTree');
-
-  // Update "All" row highlight
   const rowAll = document.getElementById('rowAll');
   rowAll.className = `flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium w-full text-left transition-colors
     ${currentTopicId === null ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`;
@@ -299,42 +564,37 @@ function renderTopicTree() {
     tree.innerHTML = '<p class="px-4 py-5 text-xs text-slate-400 text-center">No topics yet.<br>Add one below.</p>';
     return;
   }
-
   tree.innerHTML = allTopics.map(topic => {
     const expanded = expandedTopics.has(topic.id);
     const sets     = setsCache[topic.id] || [];
-    const isTopicActive = currentTopicId === topic.id && currentSetId === null;
-
     const setsHtml = expanded ? `
       <div class="pl-6 pb-1">
-        ${sets.length === 0
-          ? '<p class="px-3 py-1.5 text-xs text-slate-400 italic">No sets — click + to add one</p>'
-          : sets.map(set => {
-              const active = currentSetId === set.id;
-              return `
-                <div class="group flex items-center gap-2 px-3 py-2 cursor-pointer rounded-lg mx-1 transition-colors
-                  ${active ? 'bg-indigo-50' : 'hover:bg-slate-50'}"
-                  onclick="selectView('${topic.id}', '${set.id}')">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}"
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        ${sets.length === 0 ? '<p class="px-3 py-1.5 text-xs text-slate-400 italic">No sets — click + to add one</p>' :
+          sets.map(set => {
+            const active = currentSetId === set.id;
+            return `
+              <div class="group flex items-center gap-2 px-3 py-2 cursor-pointer rounded-lg mx-1 transition-colors
+                ${active ? 'bg-indigo-50' : 'hover:bg-slate-50'}"
+                onclick="selectView('${topic.id}', '${set.id}')">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <span class="flex-1 text-xs truncate ${active ? 'text-indigo-700 font-semibold' : 'text-slate-600'}">${escHtml(set.name)}</span>
+                <button onclick="event.stopPropagation(); showSetDropdown(event, '${set.id}', '${topic.id}')"
+                  class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 text-slate-400 flex-shrink-0">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
                   </svg>
-                  <span class="flex-1 text-xs truncate ${active ? 'text-indigo-700 font-semibold' : 'text-slate-600'}">${escHtml(set.name)}</span>
-                  <button onclick="event.stopPropagation(); showSetDropdown(event, '${set.id}', '${topic.id}')"
-                    class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 text-slate-400 flex-shrink-0">
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
-                    </svg>
-                  </button>
-                </div>`;
-            }).join('')}
+                </button>
+              </div>`;
+          }).join('')}
       </div>` : '';
-
     return `
       <div>
         <div class="group flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-colors
-          ${isTopicActive ? 'bg-slate-100' : 'hover:bg-slate-50'}"
+          ${currentTopicId === topic.id && !currentSetId ? 'bg-slate-100' : 'hover:bg-slate-50'}"
           onclick="toggleTopic('${topic.id}')">
           <svg class="w-3 h-3 text-slate-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}"
             fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -344,14 +604,14 @@ function renderTopicTree() {
             <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
           </svg>
           <span class="flex-1 text-sm font-medium text-slate-700 truncate">${escHtml(topic.name)}</span>
-          <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+          <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100" onclick="event.stopPropagation()">
             <button onclick="openSetModal(null, '${topic.id}')" title="Add set"
               class="p-1 rounded hover:bg-indigo-100 text-slate-400 hover:text-indigo-600">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>
             </button>
-            <button onclick="showTopicDropdown(event, '${topic.id}')" title="More"
+            <button onclick="showTopicDropdown(event, '${topic.id}')"
               class="p-1 rounded hover:bg-slate-200 text-slate-400">
               <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
@@ -365,20 +625,14 @@ function renderTopicTree() {
 }
 
 async function toggleTopic(topicId) {
-  if (expandedTopics.has(topicId)) {
-    expandedTopics.delete(topicId);
-  } else {
-    expandedTopics.add(topicId);
-    if (!setsCache[topicId]) await fetchSets(topicId);
-  }
+  if (expandedTopics.has(topicId)) { expandedTopics.delete(topicId); }
+  else { expandedTopics.add(topicId); if (!setsCache[topicId]) await fetchSets(topicId); }
   renderTopicTree();
 }
 
 async function selectView(topicId, setId) {
-  currentTopicId = topicId;
-  currentSetId   = setId;
-  updateBreadcrumb();
-  renderTopicTree();
+  currentTopicId = topicId; currentSetId = setId;
+  updateBreadcrumb(); renderTopicTree();
   await loadQuestionsForView();
 }
 
@@ -387,31 +641,24 @@ function updateBreadcrumb() {
   if (!currentTopicId) { el.textContent = 'All Questions'; return; }
   const topic = allTopics.find(t => t.id === currentTopicId);
   if (!currentSetId) { el.textContent = topic?.name || ''; return; }
-  const sets = setsCache[currentTopicId] || [];
-  const set  = sets.find(s => s.id === currentSetId);
+  const set = (setsCache[currentTopicId] || []).find(s => s.id === currentSetId);
   el.innerHTML = `<span class="text-slate-400 font-normal">${escHtml(topic?.name || '')}</span>
     <svg class="w-3 h-3 inline text-slate-300 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
     </svg>${escHtml(set?.name || '')}`;
 }
 
-// ── Questions ─────────────────────────────────────────────────────
+// ── Question loading ──────────────────────────────────────────────
 async function loadQuestionsForView() {
   document.getElementById('questionList').innerHTML =
     '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm shadow-sm">Loading…</div>';
   try {
     let snap;
-    if (currentSetId) {
-      snap = await db.collection('exam_questions').where('setId', '==', currentSetId).get();
-    } else if (currentTopicId) {
-      snap = await db.collection('exam_questions').where('topicId', '==', currentTopicId).get();
-    } else {
-      snap = await db.collection('exam_questions').orderBy('createdAt', 'desc').get();
-    }
+    if (currentSetId)       snap = await db.collection('exam_questions').where('setId', '==', currentSetId).get();
+    else if (currentTopicId) snap = await db.collection('exam_questions').where('topicId', '==', currentTopicId).get();
+    else                     snap = await db.collection('exam_questions').orderBy('createdAt', 'desc').get();
     viewQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (!currentSetId) {
-      viewQuestions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    }
+    if (!currentSetId) viewQuestions.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     applyFilter();
   } catch (e) {
     document.getElementById('questionList').innerHTML =
@@ -421,8 +668,7 @@ async function loadQuestionsForView() {
 
 function applyFilter() {
   const type = document.getElementById('filterType').value;
-  const filtered = type ? viewQuestions.filter(q => q.type === type) : viewQuestions;
-  renderQuestions(filtered);
+  renderQuestions(type ? viewQuestions.filter(q => q.type === type) : viewQuestions);
 }
 
 function renderQuestions(questions) {
@@ -441,9 +687,6 @@ function renderQuestions(questions) {
       const t = allTopics.find(x => x.id === q.topicId);
       if (t) locationBadge = `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">${escHtml(t.name)}</span>`;
     }
-    const img = q.imageUrl
-      ? `<img src="${q.imageUrl}" class="mt-3 max-h-32 rounded-xl border border-slate-200 object-contain">`
-      : '';
     return `
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
         <div class="flex items-start justify-between gap-4">
@@ -454,8 +697,7 @@ function renderQuestions(questions) {
                 ${q.totalMarks || 1} mark${(q.totalMarks || 1) > 1 ? 's' : ''}
               </span>
             </div>
-            <p class="text-slate-800 text-sm leading-relaxed">${escHtml(q.questionText || '')}</p>
-            ${img}
+            <div class="q-text text-slate-800 text-sm leading-relaxed">${q.questionText || ''}</div>
             ${q.type === 'mcq' && q.options ? `
               <div class="mt-3 grid grid-cols-2 gap-1.5">
                 ${['A','B','C','D'].map(l => `
@@ -497,33 +739,25 @@ async function openQuestionModal(existingQ = null) {
   editingId = existingQ?.id || null;
   document.getElementById('qModalTitle').textContent = existingQ ? 'Edit Question' : 'Add Question';
 
-  // Populate topic dropdown
   const topicSel = document.getElementById('qTopicSel');
   topicSel.innerHTML = '<option value="">Select topic…</option>';
-  allTopics.forEach(t => {
-    topicSel.insertAdjacentHTML('beforeend', `<option value="${t.id}">${escHtml(t.name)}</option>`);
-  });
+  allTopics.forEach(t => topicSel.insertAdjacentHTML('beforeend', `<option value="${t.id}">${escHtml(t.name)}</option>`));
 
   const preTopicId = existingQ?.topicId || currentTopicId || '';
   topicSel.value = preTopicId;
   await populateSetDropdown(preTopicId, existingQ?.setId || currentSetId || '');
 
   setType(existingQ?.type || 'mcq');
-  document.getElementById('qText').value   = existingQ?.questionText || '';
+  quill.root.innerHTML = existingQ?.questionText || '';
   document.getElementById('qMarks').value  = existingQ?.totalMarks || 1;
   document.getElementById('qScheme').value = existingQ?.markingScheme || '';
   document.getElementById('allowImageUpload').checked = existingQ?.allowImageUpload || false;
-  document.getElementById('existingImageUrl').value   = existingQ?.imageUrl || '';
   document.getElementById('qError').classList.add('hidden');
-  clearImagePreview();
-  if (existingQ?.imageUrl) {
-    document.getElementById('imgPreview').classList.remove('hidden');
-    document.getElementById('previewImg').src = existingQ.imageUrl;
-  }
+
   if (existingQ?.type === 'mcq' && existingQ.options) {
     ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = existingQ.options[l] || ''; });
-    const radio = document.querySelector(`input[name="correct"][value="${existingQ.correctAnswer}"]`);
-    if (radio) radio.checked = true;
+    const r = document.querySelector(`input[name="correct"][value="${existingQ.correctAnswer}"]`);
+    if (r) r.checked = true;
   } else {
     ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = ''; });
     document.querySelectorAll('input[name="correct"]').forEach(r => r.checked = false);
@@ -536,9 +770,8 @@ async function populateSetDropdown(topicId, selectedSetId) {
   setSel.innerHTML = '<option value="">Select set…</option>';
   if (!topicId) return;
   if (!setsCache[topicId]) await fetchSets(topicId);
-  (setsCache[topicId] || []).forEach(s => {
-    setSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${escHtml(s.name)}</option>`);
-  });
+  (setsCache[topicId] || []).forEach(s =>
+    setSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${escHtml(s.name)}</option>`));
   if (selectedSetId) setSel.value = selectedSetId;
 }
 
@@ -579,7 +812,7 @@ async function saveQuestion() {
   const errEl   = document.getElementById('qError');
   const topicId = document.getElementById('qTopicSel').value;
   const setId   = document.getElementById('qSetSel').value;
-  const text    = document.getElementById('qText').value.trim();
+  const text    = quill.root.innerHTML === '<p><br></p>' ? '' : quill.root.innerHTML;
   const marks   = parseInt(document.getElementById('qMarks').value) || 1;
   errEl.classList.add('hidden');
 
@@ -595,8 +828,7 @@ async function saveQuestion() {
     const correct = document.querySelector('input[name="correct"]:checked')?.value;
     if (!opts.A || !opts.B || !opts.C || !opts.D) { showInlineErr(errEl, 'Please fill in all four answer options.'); return; }
     if (!correct) { showInlineErr(errEl, 'Please select the correct answer.'); return; }
-    data.options = opts;
-    data.correctAnswer = correct;
+    data.options = opts; data.correctAnswer = correct;
   } else {
     const scheme = document.getElementById('qScheme').value.trim();
     if (!scheme) { showInlineErr(errEl, 'Please enter the marking scheme.'); return; }
@@ -606,27 +838,12 @@ async function saveQuestion() {
 
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const file = document.getElementById('qImage').files[0];
-    if (file) {
-      const ref = storage.ref(`exam-images/questions/${Date.now()}_${file.name}`);
-      await ref.put(file);
-      data.imageUrl = await ref.getDownloadURL();
-    } else {
-      data.imageUrl = document.getElementById('existingImageUrl').value || null;
-    }
-    if (editingId) {
-      await db.collection('exam_questions').doc(editingId).update(data);
-    } else {
-      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('exam_questions').add(data);
-    }
+    if (editingId) { await db.collection('exam_questions').doc(editingId).update(data); }
+    else { data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('exam_questions').add(data); }
     closeQuestionModal();
     await loadQuestionsForView();
-  } catch (ex) {
-    showInlineErr(errEl, ex.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save Question';
-  }
+  } catch (ex) { showInlineErr(errEl, ex.message); }
+  finally { btn.disabled = false; btn.textContent = 'Save Question'; }
 }
 
 // ── Topic Modal ───────────────────────────────────────────────────
@@ -639,35 +856,21 @@ function openTopicModal(topicId) {
   document.getElementById('topicModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('topicNameInput').focus(), 80);
 }
-
-function closeTopicModal() {
-  document.getElementById('topicModal').classList.add('hidden');
-  editingTopicId = null;
-}
-
+function closeTopicModal() { document.getElementById('topicModal').classList.add('hidden'); editingTopicId = null; }
 async function saveTopic() {
   const name = document.getElementById('topicNameInput').value.trim();
   if (!name) { showInlineErr(document.getElementById('topicErr'), 'Please enter a name.'); return; }
-  const btn = document.getElementById('topicSaveBtn');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  const btn = document.getElementById('topicSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    if (editingTopicId) {
-      await db.collection('exam_topics').doc(editingTopicId).update({ name });
-    } else {
-      await db.collection('exam_topics').add({ name, order: Date.now(), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    }
-    closeTopicModal();
-    await loadTopics();
-  } catch (e) {
-    showInlineErr(document.getElementById('topicErr'), e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save';
-  }
+    if (editingTopicId) { await db.collection('exam_topics').doc(editingTopicId).update({ name }); }
+    else { await db.collection('exam_topics').add({ name, order: Date.now(), createdAt: firebase.firestore.FieldValue.serverTimestamp() }); }
+    closeTopicModal(); await loadTopics();
+  } catch (e) { showInlineErr(document.getElementById('topicErr'), e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Save'; }
 }
-
 async function deleteTopic(topicId) {
   const qSnap = await db.collection('exam_questions').where('topicId', '==', topicId).limit(1).get();
-  if (!qSnap.empty) { alert('Cannot delete: this topic has questions. Move or delete them first.'); return; }
+  if (!qSnap.empty) { alert('Cannot delete: topic has questions. Move or delete them first.'); return; }
   if (!confirm('Delete this topic and all its sets?')) return;
   const setsSnap = await db.collection('exam_question_sets').where('topicId', '==', topicId).get();
   const batch = db.batch();
@@ -676,135 +879,403 @@ async function deleteTopic(topicId) {
   await batch.commit();
   delete setsCache[topicId];
   if (currentTopicId === topicId) { currentTopicId = null; currentSetId = null; }
-  await loadTopics();
-  await loadQuestionsForView();
-  updateBreadcrumb();
+  await loadTopics(); await loadQuestionsForView(); updateBreadcrumb();
 }
 
 // ── Set Modal ─────────────────────────────────────────────────────
 function openSetModal(setId, topicId) {
-  editingSetId    = setId;
-  setModalTopicId = topicId;
-  const sets = setsCache[topicId] || [];
-  const set  = setId ? sets.find(s => s.id === setId) : null;
+  editingSetId = setId; setModalTopicId = topicId;
+  const set = setId ? (setsCache[topicId] || []).find(s => s.id === setId) : null;
   document.getElementById('setModalTitle').textContent = setId ? 'Rename Set' : 'New Question Set';
   document.getElementById('setNameInput').value = set?.name || '';
   document.getElementById('setErr').classList.add('hidden');
   document.getElementById('setModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('setNameInput').focus(), 80);
 }
-
-function closeSetModal() {
-  document.getElementById('setModal').classList.add('hidden');
-  editingSetId = null; setModalTopicId = null;
-}
-
+function closeSetModal() { document.getElementById('setModal').classList.add('hidden'); editingSetId = null; setModalTopicId = null; }
 async function saveSet() {
   const name = document.getElementById('setNameInput').value.trim();
   if (!name) { showInlineErr(document.getElementById('setErr'), 'Please enter a name.'); return; }
-  const btn = document.getElementById('setSaveBtn');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  const btn = document.getElementById('setSaveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    if (editingSetId) {
-      await db.collection('exam_question_sets').doc(editingSetId).update({ name });
-    } else {
-      await db.collection('exam_question_sets').add({
-        name, topicId: setModalTopicId, order: Date.now(),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+    if (editingSetId) { await db.collection('exam_question_sets').doc(editingSetId).update({ name }); }
+    else {
+      await db.collection('exam_question_sets').add({ name, topicId: setModalTopicId, order: Date.now(), createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       expandedTopics.add(setModalTopicId);
     }
-    delete setsCache[setModalTopicId];
-    await fetchSets(setModalTopicId);
-    closeSetModal();
-    renderTopicTree();
-  } catch (e) {
-    showInlineErr(document.getElementById('setErr'), e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Save';
-  }
+    delete setsCache[setModalTopicId]; await fetchSets(setModalTopicId);
+    closeSetModal(); renderTopicTree();
+  } catch (e) { showInlineErr(document.getElementById('setErr'), e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Save'; }
 }
-
 async function deleteSet(setId, topicId) {
   const qSnap = await db.collection('exam_questions').where('setId', '==', setId).limit(1).get();
-  if (!qSnap.empty) { alert('Cannot delete: this set has questions. Move or delete them first.'); return; }
+  if (!qSnap.empty) { alert('Cannot delete: set has questions.'); return; }
   if (!confirm('Delete this set?')) return;
   await db.collection('exam_question_sets').doc(setId).delete();
   delete setsCache[topicId];
   if (currentSetId === setId) { currentSetId = null; updateBreadcrumb(); await loadQuestionsForView(); }
-  await fetchSets(topicId);
-  renderTopicTree();
+  await fetchSets(topicId); renderTopicTree();
 }
 
-// ── Dropdown menus ────────────────────────────────────────────────
+// ── Dropdown ──────────────────────────────────────────────────────
 function showTopicDropdown(event, topicId) {
-  const menu = document.getElementById('ddMenu');
-  menu.innerHTML = `
+  document.getElementById('ddMenu').innerHTML = `
     <button onclick="closeDropdown(); openTopicModal('${topicId}')"
       class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Rename</button>
     <button onclick="closeDropdown(); deleteTopic('${topicId}')"
       class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete topic</button>`;
   positionDropdown(event);
 }
-
 function showSetDropdown(event, setId, topicId) {
-  const menu = document.getElementById('ddMenu');
-  menu.innerHTML = `
+  document.getElementById('ddMenu').innerHTML = `
     <button onclick="closeDropdown(); openSetModal('${setId}', '${topicId}')"
       class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Rename</button>
     <button onclick="closeDropdown(); deleteSet('${setId}', '${topicId}')"
       class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Delete set</button>`;
   positionDropdown(event);
 }
-
 function positionDropdown(event) {
-  const menu    = document.getElementById('ddMenu');
-  const overlay = document.getElementById('ddOverlay');
-  const rect    = event.currentTarget.getBoundingClientRect();
-  const top     = rect.bottom + 4;
-  let   left    = rect.left - 100;
-  if (left < 4) left = 4;
-  menu.style.top  = top + 'px';
-  menu.style.left = left + 'px';
+  const menu = document.getElementById('ddMenu');
+  const rect = event.currentTarget.getBoundingClientRect();
+  let left = rect.left - 100; if (left < 4) left = 4;
+  menu.style.top = (rect.bottom + 4) + 'px'; menu.style.left = left + 'px';
   menu.classList.remove('hidden');
-  overlay.classList.remove('hidden');
+  document.getElementById('ddOverlay').classList.remove('hidden');
 }
-
 function closeDropdown() {
   document.getElementById('ddMenu').classList.add('hidden');
   document.getElementById('ddOverlay').classList.add('hidden');
 }
 
-// ── Image helpers ─────────────────────────────────────────────────
-function previewImage(input) {
-  if (!input.files[0]) return;
+// ══════════════════════════════════════════════════════════════════
+// IMPORT MODAL
+// ══════════════════════════════════════════════════════════════════
+function openImportModal() {
+  importedRows = []; importImgData = null;
+  switchImportTab('csv');
+  clearImportAssign();
+  document.getElementById('importAssignSection').classList.add('hidden');
+  document.getElementById('importModal').classList.remove('hidden');
+  // Populate topic dropdown
+  const sel = document.getElementById('importTopicSel');
+  sel.innerHTML = '<option value="">Select topic…</option>';
+  allTopics.forEach(t => sel.insertAdjacentHTML('beforeend', `<option value="${t.id}">${escHtml(t.name)}</option>`));
+  if (currentTopicId) { sel.value = currentTopicId; onImportTopicChange(); }
+}
+
+function closeImportModal() {
+  document.getElementById('importModal').classList.add('hidden');
+  document.getElementById('csvFileName').textContent = 'No file chosen';
+  document.getElementById('csvFileInput').value = '';
+  document.getElementById('importTextarea').value = '';
+  clearImportImg();
+  importedRows = [];
+}
+
+function switchImportTab(tab) {
+  currentImportTab = tab;
+  ['csv','text','img'].forEach(t => {
+    document.getElementById('importPanel' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('importTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    btn.className = `px-4 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+      t === tab ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
+  });
+}
+
+async function onImportTopicChange() {
+  const topicId = document.getElementById('importTopicSel').value;
+  const setSel  = document.getElementById('importSetSel');
+  setSel.innerHTML = '<option value="">Select set…</option>';
+  if (!topicId) return;
+  if (!setsCache[topicId]) await fetchSets(topicId);
+  (setsCache[topicId] || []).forEach(s =>
+    setSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${escHtml(s.name)}</option>`));
+  if (currentSetId && document.getElementById('importTopicSel').value === currentTopicId)
+    setSel.value = currentSetId;
+}
+
+function clearImportAssign() {
+  document.getElementById('importTopicSel').value = '';
+  document.getElementById('importSetSel').innerHTML = '<option value="">Select set…</option>';
+}
+
+// ── CSV Import ────────────────────────────────────────────────────
+function downloadCsvTemplate() {
+  const header = 'type,question,marks,optA,optB,optC,optD,correct,marking_scheme';
+  const row1   = 'mcq,"Which two atoms are isotopes of each other?",1,"Q and R","Q and T","R and S","S and T",A,';
+  const row2   = 'mcq,"Which atom has twice as many neutrons as protons?",1,"1H","2H","3H","4He",C,';
+  const row3   = 'structured,"Describe how an ionic bond is formed between sodium and chlorine.",3,,,,,,,"1. Sodium loses one electron (1); 2. Chlorine gains one electron (1); 3. Electrostatic attraction between oppositely charged ions (1)"';
+  const blob = new Blob([[header, row1, row2, row3].join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'chemexam_questions_template.csv'; a.click();
+}
+
+function handleCsvFile(input) {
+  const file = input.files[0]; if (!file) return;
+  document.getElementById('csvFileName').textContent = file.name;
   const reader = new FileReader();
   reader.onload = e => {
-    document.getElementById('previewImg').src = e.target.result;
-    document.getElementById('imgPreview').classList.remove('hidden');
-    document.getElementById('imgDropZone').classList.add('hidden');
+    try {
+      const rows = parseCSV(e.target.result);
+      if (rows.length < 2) { alert('CSV is empty or has no data rows.'); return; }
+      const header = rows[0].map(h => h.trim().toLowerCase());
+      const col = k => header.indexOf(k);
+      const qi = col('question'), ti = col('type'), mi = col('marks'),
+            ai = col('opta'), bi = col('optb'), ci = col('optc'), di = col('optd'),
+            ri = col('correct'), si = col('marking_scheme');
+      if (qi < 0 || ti < 0) { alert('CSV must have "type" and "question" columns.'); return; }
+      importedRows = rows.slice(1).filter(r => r.join('').trim()).map(r => ({
+        type:          (r[ti] || 'mcq').trim().toLowerCase(),
+        question:      (r[qi] || '').trim(),
+        marks:         parseInt(r[mi]) || 1,
+        optA:          ai >= 0 ? (r[ai] || '').trim() : '',
+        optB:          bi >= 0 ? (r[bi] || '').trim() : '',
+        optC:          ci >= 0 ? (r[ci] || '').trim() : '',
+        optD:          di >= 0 ? (r[di] || '').trim() : '',
+        correct:       ri >= 0 ? (r[ri] || '').trim().toUpperCase() : '',
+        markingScheme: si >= 0 ? (r[si] || '').trim() : '',
+      }));
+      showImportPreview();
+    } catch(ex) { alert('Failed to parse CSV: ' + ex.message); }
   };
-  reader.readAsDataURL(input.files[0]);
+  reader.readAsText(file);
 }
 
-function clearImage() {
-  clearImagePreview();
-  document.getElementById('existingImageUrl').value = '';
+function parseCSV(text) {
+  const rows = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const row = []; let col = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { if (inQ && line[i+1] === '"') { col += '"'; i++; } else inQ = !inQ; }
+      else if (c === ',' && !inQ) { row.push(col); col = ''; }
+      else col += c;
+    }
+    row.push(col); rows.push(row);
+  }
+  return rows;
 }
 
-function clearImagePreview() {
-  document.getElementById('qImage').value = '';
-  document.getElementById('imgPreview').classList.add('hidden');
-  document.getElementById('imgDropZone').classList.remove('hidden');
-  document.getElementById('previewImg').src = '';
+// ── Text Import ───────────────────────────────────────────────────
+function parseTextQuestions() {
+  const raw = document.getElementById('importTextarea').value.trim();
+  if (!raw) { alert('Please paste some questions first.'); return; }
+  const blocks = raw.split(/\n\s*\n/).filter(b => b.trim());
+  importedRows = [];
+  for (const block of blocks) {
+    const lines = block.trim().split('\n').map(l => l.trim()).filter(l => l);
+    if (!lines.length) continue;
+    const question = lines[0].replace(/^\d+[\.\)]\s*/, '').trim();
+    const opts = { A: '', B: '', C: '', D: '' };
+    let correct = '', answerLine = false;
+    const bodyLines = lines.slice(1);
+    for (const line of bodyLines) {
+      const optMatch = line.match(/^([ABCD])[\.\)]\s*(.+)/i);
+      const ansMatch = line.match(/^answer\s*[:\-]\s*([ABCD])/i);
+      if (optMatch) opts[optMatch[1].toUpperCase()] = optMatch[2].trim();
+      else if (ansMatch) { correct = ansMatch[1].toUpperCase(); answerLine = true; }
+    }
+    const isMcq = opts.A && opts.B;
+    importedRows.push({
+      type:          isMcq ? 'mcq' : 'structured',
+      question,
+      marks:         1,
+      optA: opts.A, optB: opts.B, optC: opts.C, optD: opts.D,
+      correct,
+      markingScheme: isMcq ? '' : bodyLines.join('\n'),
+    });
+  }
+  if (!importedRows.length) { alert('No questions found. Check the format.'); return; }
+  showImportPreview();
+}
+
+// ── Image / AI Import ─────────────────────────────────────────────
+function handleGlobalPaste(e) {
+  if (!document.getElementById('importModal').classList.contains('hidden') &&
+      currentImportTab === 'img') {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        loadImportImage(item.getAsFile());
+        break;
+      }
+    }
+  }
+}
+
+function handleImgDrop(e) {
+  e.preventDefault();
+  document.getElementById('importImgZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImportImage(file);
+}
+
+function handleImgFileSelect(input) {
+  const file = input.files[0];
+  if (file) loadImportImage(file);
+}
+
+function loadImportImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const [header, base64] = dataUrl.split(',');
+    const mediaType = header.match(/:(.*?);/)[1];
+    importImgData = { base64, mediaType };
+    document.getElementById('importImgPreview').src = dataUrl;
+    document.getElementById('importImgPreviewWrap').classList.remove('hidden');
+    document.getElementById('importImgZone').classList.add('hidden');
+    document.getElementById('extractError').classList.add('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImportImg() {
+  importImgData = null;
+  document.getElementById('importImgFile').value = '';
+  document.getElementById('importImgPreviewWrap').classList.add('hidden');
+  document.getElementById('importImgZone').classList.remove('hidden');
+  document.getElementById('extractStatus').classList.add('hidden');
+  document.getElementById('extractError').classList.add('hidden');
+}
+
+async function extractQuestionsFromImage() {
+  const apiKey = localStorage.getItem('claude_api_key');
+  if (!apiKey) { alert('Please set your Claude API key in Dashboard → Settings first.'); return; }
+  if (!importImgData) return;
+
+  const btn = document.getElementById('extractBtn');
+  const status = document.getElementById('extractStatus');
+  const errEl  = document.getElementById('extractError');
+  btn.disabled = true; status.classList.remove('hidden'); errEl.classList.add('hidden');
+
+  const prompt = `Extract all exam questions from this image. Return ONLY a valid JSON array, no markdown, no explanation.
+Each object must have:
+- "type": "mcq" or "structured"
+- "question": full question text (include any introductory sentence)
+- "marks": integer (default 1 if not shown)
+- "optA","optB","optC","optD": answer option text (MCQ only, empty string if structured)
+- "correct": correct answer letter A/B/C/D (MCQ only, empty if structured)
+- "markingScheme": marking scheme or expected answer (structured only, empty if MCQ)
+
+Example output: [{"type":"mcq","question":"Which two atoms are isotopes?","marks":1,"optA":"Q and R","optB":"Q and T","optC":"R and S","optD":"S and T","correct":"A","markingScheme":""}]`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-allow-browser': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-20240307',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: importImgData.mediaType, data: importImgData.base64 } },
+          { type: 'text', text: prompt }
+        ]}]
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    let jsonStr = data.content[0].text.trim();
+    // Strip markdown code fences if present
+    jsonStr = jsonStr.replace(/^```json?\s*/i, '').replace(/\s*```$/, '');
+    importedRows = JSON.parse(jsonStr).map(q => ({
+      type: q.type || 'mcq', question: q.question || '',
+      marks: parseInt(q.marks) || 1,
+      optA: q.optA || '', optB: q.optB || '', optC: q.optC || '', optD: q.optD || '',
+      correct: (q.correct || '').toUpperCase(),
+      markingScheme: q.markingScheme || ''
+    }));
+    showImportPreview();
+  } catch (ex) {
+    showInlineErr(errEl, 'Extraction failed: ' + ex.message);
+  } finally {
+    btn.disabled = false; status.classList.add('hidden');
+  }
+}
+
+// ── Preview & Execute Import ──────────────────────────────────────
+function showImportPreview() {
+  document.getElementById('importAssignSection').classList.remove('hidden');
+  document.getElementById('importPreviewLabel').textContent = `${importedRows.length} question${importedRows.length !== 1 ? 's' : ''} ready to import`;
+  document.getElementById('importBtn').textContent = `Import ${importedRows.length} Question${importedRows.length !== 1 ? 's' : ''}`;
+  const tbody = document.getElementById('importPreviewBody');
+  tbody.innerHTML = importedRows.map((q, i) => `
+    <tr class="hover:bg-slate-50">
+      <td class="px-3 py-2.5 text-slate-500">${i + 1}</td>
+      <td class="px-3 py-2.5">
+        <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${q.type === 'mcq' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">
+          ${q.type === 'mcq' ? 'MCQ' : 'Struct'}
+        </span>
+      </td>
+      <td class="px-3 py-2.5 text-slate-700 max-w-xs truncate" title="${escHtml(q.question)}">${escHtml(q.question)}</td>
+      <td class="px-3 py-2.5 text-slate-600">
+        <input type="number" min="1" value="${q.marks}" onchange="importedRows[${i}].marks=parseInt(this.value)||1"
+          class="w-12 px-2 py-1 border border-slate-200 rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-400">
+      </td>
+      <td class="px-3 py-2.5">
+        <select onchange="importedRows[${i}].correct=this.value"
+          class="px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 ${q.type !== 'mcq' ? 'opacity-40 pointer-events-none' : ''}">
+          <option value="">?</option>
+          ${['A','B','C','D'].map(l => `<option ${q.correct===l?'selected':''} value="${l}">${l}</option>`).join('')}
+        </select>
+      </td>
+      <td class="px-3 py-2.5">
+        <button onclick="importedRows.splice(${i},1); showImportPreview()"
+          class="p-1 text-slate-300 hover:text-red-500 rounded">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function executeImport() {
+  const topicId = document.getElementById('importTopicSel').value;
+  const setId   = document.getElementById('importSetSel').value;
+  const errEl   = document.getElementById('importErr');
+  errEl.classList.add('hidden');
+  if (!topicId) { showInlineErr(errEl, 'Please select a topic.'); return; }
+  if (!setId)   { showInlineErr(errEl, 'Please select a question set.'); return; }
+  if (!importedRows.length) { showInlineErr(errEl, 'No questions to import.'); return; }
+
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    const batch = db.batch();
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    for (const q of importedRows) {
+      const ref = db.collection('exam_questions').doc();
+      const doc = { questionText: q.question, topicId, setId, totalMarks: q.marks, type: q.type, createdAt: ts };
+      if (q.type === 'mcq') {
+        doc.options = { A: q.optA, B: q.optB, C: q.optC, D: q.optD };
+        doc.correctAnswer = q.correct;
+      } else {
+        doc.markingScheme = q.markingScheme;
+        doc.allowImageUpload = false;
+      }
+      batch.set(ref, doc);
+    }
+    await batch.commit();
+    closeImportModal();
+    // Navigate to the imported set
+    if (!expandedTopics.has(topicId)) { expandedTopics.add(topicId); await fetchSets(topicId); }
+    await selectView(topicId, setId);
+  } catch (ex) { showInlineErr(errEl, ex.message); }
+  finally { btn.disabled = false; btn.textContent = `Import ${importedRows.length} Questions`; }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────
-function showInlineErr(el, msg) {
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-
+function showInlineErr(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
