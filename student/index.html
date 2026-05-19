@@ -121,21 +121,17 @@
       .where('studentId', '==', currentUser.uid).get();
     submittedPaperIds = new Set(subSnap.docs.map(d => d.data().paperId));
 
-    // Get papers: assigned to this student OR open to all students
-    const [assignedSnap, openSnap] = await Promise.all([
-      db.collection('exam_papers').where('status', '==', 'published').where('assignedTo', 'array-contains', currentUser.uid).get(),
-      db.collection('exam_papers').where('status', '==', 'published').where('openToAll', '==', true).get(),
-    ]);
-    const paperMap = {};
-    assignedSnap.docs.forEach(d => { paperMap[d.id] = { id: d.id, ...d.data() }; });
-    openSnap.docs.forEach(d => { paperMap[d.id] = { id: d.id, ...d.data() }; });
+    // Get papers assigned to this student
+    const papersSnap = await db.collection('exam_papers')
+      .where('status', '==', 'published')
+      .where('assignedTo', 'array-contains', currentUser.uid).get();
 
-    if (Object.keys(paperMap).length === 0) {
+    if (papersSnap.empty) {
       area.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400">No papers assigned to you yet. Check back soon!</p></div>';
       return;
     }
 
-    const papers = Object.values(paperMap);
+    const papers = papersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const pending   = papers.filter(p => !submittedPaperIds.has(p.id));
     const completed = papers.filter(p =>  submittedPaperIds.has(p.id));
 
