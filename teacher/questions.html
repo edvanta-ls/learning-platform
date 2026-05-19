@@ -219,7 +219,7 @@
         </div>
         <!-- Chemistry character picker -->
         <div class="flex flex-wrap items-center gap-1 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
-          <span class="text-xs text-slate-400 mr-1 flex-shrink-0">Insert:</span>
+          <span class="text-xs text-slate-400 mr-1 flex-shrink-0" title="Type ^{2} for superscript, _{4} for subscript in options">Insert:</span>
           <span class="text-xs text-slate-300 mr-0.5">sup →</span>
           ${['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹','+','⁻'].map(c =>
             `<button type="button" onclick="insertCharInOpt('${c}')" class="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50 hover:border-indigo-300 font-mono transition-colors">${c}</button>`
@@ -233,34 +233,96 @@
           <button type="button" onclick="insertNuclideInOpt()"
             class="px-2 py-0.5 text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 font-mono transition-colors"
             title="Insert stacked nuclide notation">²₁ stacked</button>
+          <span class="text-slate-200 mx-1">|</span>
+          <span class="text-xs text-slate-400">Type <code class="bg-white px-1 rounded border border-slate-200">^{2}</code> super · <code class="bg-white px-1 rounded border border-slate-200">_{4}</code> sub</span>
         </div>
         <div class="space-y-2">
-          <div class="flex items-center gap-3">
-            <input type="radio" name="correct" value="A" class="w-4 h-4 text-indigo-600 flex-shrink-0">
-            <span class="text-sm font-semibold text-slate-600 w-4">A</span>
-            <input type="text" id="optA" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option A"
-              onfocus="activeOptInput=this">
+          <!-- Option A -->
+          <div class="space-y-1">
+            <div class="flex items-center gap-3">
+              <input type="radio" name="correct" value="A" class="w-4 h-4 text-indigo-600 flex-shrink-0">
+              <span class="text-sm font-semibold text-slate-600 w-4">A</span>
+              <input type="text" id="optA" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option A (text or leave blank if image only)"
+                onfocus="activeOptInput=this" onpaste="handleOptPaste(event,'A')">
+              <button type="button" onclick="pickOptImage('A')" title="Upload image for this option"
+                class="flex-shrink-0 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="optImgWrapA" class="hidden pl-11 flex items-center gap-2">
+              <img id="optImgPreviewA" class="max-h-20 rounded-lg border border-slate-200 object-contain">
+              <button type="button" onclick="removeOptImage('A')" title="Remove image" class="p-1 text-slate-300 hover:text-red-500 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
-            <input type="radio" name="correct" value="B" class="w-4 h-4 text-indigo-600 flex-shrink-0">
-            <span class="text-sm font-semibold text-slate-600 w-4">B</span>
-            <input type="text" id="optB" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option B"
-              onfocus="activeOptInput=this">
+          <!-- Option B -->
+          <div class="space-y-1">
+            <div class="flex items-center gap-3">
+              <input type="radio" name="correct" value="B" class="w-4 h-4 text-indigo-600 flex-shrink-0">
+              <span class="text-sm font-semibold text-slate-600 w-4">B</span>
+              <input type="text" id="optB" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option B"
+                onfocus="activeOptInput=this" onpaste="handleOptPaste(event,'B')">
+              <button type="button" onclick="pickOptImage('B')" title="Upload image for this option"
+                class="flex-shrink-0 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="optImgWrapB" class="hidden pl-11 flex items-center gap-2">
+              <img id="optImgPreviewB" class="max-h-20 rounded-lg border border-slate-200 object-contain">
+              <button type="button" onclick="removeOptImage('B')" title="Remove image" class="p-1 text-slate-300 hover:text-red-500 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
-            <input type="radio" name="correct" value="C" class="w-4 h-4 text-indigo-600 flex-shrink-0">
-            <span class="text-sm font-semibold text-slate-600 w-4">C</span>
-            <input type="text" id="optC" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option C"
-              onfocus="activeOptInput=this">
+          <!-- Option C -->
+          <div class="space-y-1">
+            <div class="flex items-center gap-3">
+              <input type="radio" name="correct" value="C" class="w-4 h-4 text-indigo-600 flex-shrink-0">
+              <span class="text-sm font-semibold text-slate-600 w-4">C</span>
+              <input type="text" id="optC" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option C"
+                onfocus="activeOptInput=this" onpaste="handleOptPaste(event,'C')">
+              <button type="button" onclick="pickOptImage('C')" title="Upload image for this option"
+                class="flex-shrink-0 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="optImgWrapC" class="hidden pl-11 flex items-center gap-2">
+              <img id="optImgPreviewC" class="max-h-20 rounded-lg border border-slate-200 object-contain">
+              <button type="button" onclick="removeOptImage('C')" title="Remove image" class="p-1 text-slate-300 hover:text-red-500 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
-            <input type="radio" name="correct" value="D" class="w-4 h-4 text-indigo-600 flex-shrink-0">
-            <span class="text-sm font-semibold text-slate-600 w-4">D</span>
-            <input type="text" id="optD" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option D"
-              onfocus="activeOptInput=this">
+          <!-- Option D -->
+          <div class="space-y-1">
+            <div class="flex items-center gap-3">
+              <input type="radio" name="correct" value="D" class="w-4 h-4 text-indigo-600 flex-shrink-0">
+              <span class="text-sm font-semibold text-slate-600 w-4">D</span>
+              <input type="text" id="optD" class="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Option D"
+                onfocus="activeOptInput=this" onpaste="handleOptPaste(event,'D')">
+              <button type="button" onclick="pickOptImage('D')" title="Upload image for this option"
+                class="flex-shrink-0 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="optImgWrapD" class="hidden pl-11 flex items-center gap-2">
+              <img id="optImgPreviewD" class="max-h-20 rounded-lg border border-slate-200 object-contain">
+              <button type="button" onclick="removeOptImage('D')" title="Remove image" class="p-1 text-slate-300 hover:text-red-500 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
           </div>
         </div>
-        <p class="text-xs text-slate-400">Select the radio button next to the correct answer.</p>
+        <p class="text-xs text-slate-400">Select the radio button next to the correct answer. Camera icon or Ctrl+V to attach an image to an option.</p>
       </div>
 
       <!-- Structured -->
@@ -897,10 +959,13 @@ function renderQuestions(questions) {
               ${q.type === 'mcq' && q.options ? `
                 <div class="mt-3 grid grid-cols-2 gap-1.5">
                   ${['A','B','C','D'].map(l => `
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg
+                    <div class="flex items-start gap-2 px-3 py-1.5 rounded-lg
                       ${q.correctAnswer === l ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}">
-                      <span class="text-sm font-bold ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
-                      <span class="text-sm text-slate-700">${renderChemText(escHtml(q.options[l] || ''))}</span>
+                      <span class="text-sm font-bold mt-0.5 ${q.correctAnswer === l ? 'text-emerald-600' : 'text-slate-400'}">${l}</span>
+                      <div class="flex-1 min-w-0">
+                        ${q.options[l] ? `<span class="text-sm text-slate-700">${renderChemText(escHtml(q.options[l]))}</span>` : ''}
+                        ${q.optionImages?.[l] ? `<img src="${escHtml(q.optionImages[l])}" class="mt-1 max-h-16 rounded-lg border border-slate-200 object-contain">` : ''}
+                      </div>
                     </div>`).join('')}
                 </div>` : ''}
               ${q.type === 'structured' && q.markingScheme ? `
@@ -983,11 +1048,17 @@ async function openQuestionModal(existingQ = null) {
   document.getElementById('qError').classList.add('hidden');
 
   if (existingQ?.type === 'mcq' && existingQ.options) {
-    ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = existingQ.options[l] || ''; });
+    ['A','B','C','D'].forEach(l => {
+      document.getElementById('opt'+l).value = existingQ.options[l] || '';
+      setOptImagePreview(l, existingQ.optionImages?.[l] || null);
+    });
     const r = document.querySelector(`input[name="correct"][value="${existingQ.correctAnswer}"]`);
     if (r) r.checked = true;
   } else {
-    ['A','B','C','D'].forEach(l => { document.getElementById('opt'+l).value = ''; });
+    ['A','B','C','D'].forEach(l => {
+      document.getElementById('opt'+l).value = '';
+      setOptImagePreview(l, null);
+    });
     document.querySelectorAll('input[name="correct"]').forEach(r => r.checked = false);
   }
   document.getElementById('qModal').classList.remove('hidden');
@@ -1010,6 +1081,7 @@ async function onTopicSelChange() {
 function closeQuestionModal() {
   document.getElementById('qModal').classList.add('hidden');
   editingId = null;
+  ['A','B','C','D'].forEach(l => removeOptImage(l));
 }
 
 function editQuestion(id) {
@@ -1054,9 +1126,13 @@ async function saveQuestion() {
     const opts = { A: document.getElementById('optA').value.trim(), B: document.getElementById('optB').value.trim(),
                    C: document.getElementById('optC').value.trim(), D: document.getElementById('optD').value.trim() };
     const correct = document.querySelector('input[name="correct"]:checked')?.value;
-    if (!opts.A || !opts.B || !opts.C || !opts.D) { showInlineErr(errEl, 'Please fill in all four answer options.'); return; }
+    const hasText = opts.A || opts.B || opts.C || opts.D;
+    const hasImg  = Object.values(optImages).some(v => v);
+    if (!hasText && !hasImg) { showInlineErr(errEl, 'Please fill in the answer options (text or image).'); return; }
     if (!correct) { showInlineErr(errEl, 'Please select the correct answer.'); return; }
-    data.options = opts; data.correctAnswer = correct;
+    data.options = opts;
+    data.optionImages = { A: optImages.A || '', B: optImages.B || '', C: optImages.C || '', D: optImages.D || '' };
+    data.correctAnswer = correct;
   } else {
     const scheme = document.getElementById('qScheme').value.trim();
     if (!scheme) { showInlineErr(errEl, 'Please enter the marking scheme.'); return; }
@@ -1616,16 +1692,17 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Convert {mass|atomic} shorthand → stacked nuclide HTML.
-// e.g. {4|2}He → ⁴₂He stacked vertically to the left of He.
 function renderChemText(s) {
-  return String(s).replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
-    `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`
-  );
+  return String(s || '')
+    .replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
+      `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`)
+    .replace(/\^{([^}]+)}/g, (_, c) => `<sup>${c}</sup>`)
+    .replace(/_{([^}]+)}/g,  (_, c) => `<sub>${c}</sub>`);
 }
 
 // ── Nuclide notation helpers ──────────────────────────────────────
 let activeOptInput = null;
+let optImages = { A: null, B: null, C: null, D: null };
 
 function insertCharInOpt(char) {
   const el = activeOptInput;
@@ -1640,6 +1717,66 @@ function insertNuclideInOpt() {
   const el = activeOptInput;
   if (!el) { alert('Click inside an option field first.'); return; }
   showNuclideDialog(shorthand => insertCharInOpt(shorthand));
+}
+
+// ── Option image helpers ──────────────────────────────────────────
+function pickOptImage(letter) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = async () => { if (input.files[0]) await uploadOptImageFile(letter, input.files[0]); };
+  input.click();
+}
+
+async function handleOptPaste(e, letter) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) await uploadOptImageFile(letter, file);
+      break;
+    }
+  }
+}
+
+async function uploadOptImageFile(letter, file) {
+  const wrapEl    = document.getElementById('optImgWrap' + letter);
+  const previewEl = document.getElementById('optImgPreview' + letter);
+  const dummy     = { textContent: '' };
+  try {
+    const blob = await compressToBlob(file, 800, 0.82);
+    let url;
+    try {
+      url = await Promise.race([
+        storageUpload(blob, dummy),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))
+      ]);
+    } catch {
+      url = await blobToDataUrl(blob);
+    }
+    optImages[letter] = url;
+    previewEl.src = url;
+    wrapEl.classList.remove('hidden');
+  } catch (err) {
+    alert('Image upload failed: ' + err.message);
+  }
+}
+
+function removeOptImage(letter) {
+  optImages[letter] = null;
+  document.getElementById('optImgPreview' + letter).src = '';
+  document.getElementById('optImgWrap' + letter).classList.add('hidden');
+}
+
+function setOptImagePreview(letter, url) {
+  if (url) {
+    optImages[letter] = url;
+    document.getElementById('optImgPreview' + letter).src = url;
+    document.getElementById('optImgWrap' + letter).classList.remove('hidden');
+  } else {
+    removeOptImage(letter);
+  }
 }
 
 function insertNuclideInEditor() {

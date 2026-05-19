@@ -99,8 +99,11 @@
   let secondsLeft = null;
 
   function renderChemText(s) {
-    return String(s || '').replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
-      `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`);
+    return String(s || '')
+      .replace(/\{(\w+)\|(\w+)\}/g, (_, top, bot) =>
+        `<span class="nuc"><span>${top}</span><span>${bot}</span></span>`)
+      .replace(/\^{([^}]+)}/g, (_, c) => `<sup>${c}</sup>`)
+      .replace(/_{([^}]+)}/g,  (_, c) => `<sub>${c}</sub>`);
   }
 
   if (isPreview) {
@@ -183,11 +186,14 @@
             ${q.imageUrl ? `<img src="${q.imageUrl}" class="mb-4 max-h-48 rounded-xl border border-slate-200 object-contain w-full">` : ''}
             <div class="space-y-2" id="opts-${q.id}">
               ${['A','B','C','D'].map(letter => `
-                <label class="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-all has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 group" id="opt-${q.id}-${letter}">
+                <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-all has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 group" id="opt-${q.id}-${letter}">
                   <input type="radio" name="mcq-${q.id}" value="${letter}" onchange="selectMCQ('${q.id}', '${letter}')"
-                    class="w-4 h-4 text-indigo-600 flex-shrink-0">
+                    class="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5">
                   <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center flex-shrink-0 group-has-[:checked]:bg-indigo-100 group-has-[:checked]:text-indigo-700">${letter}</span>
-                  <span class="text-sm text-slate-700">${renderChemText(q.options?.[letter] || '')}</span>
+                  <div class="flex-1 min-w-0">
+                    ${q.options?.[letter] ? `<span class="text-sm text-slate-700">${renderChemText(q.options[letter])}</span>` : ''}
+                    ${q.optionImages?.[letter] ? `<img src="${q.optionImages[letter]}" class="mt-1 max-h-24 rounded-lg border border-slate-200 object-contain">` : ''}
+                  </div>
                 </label>`).join('')}
             </div>
             <div id="answered-${q.id}" class="hidden mt-3 flex items-center gap-2 text-emerald-600 text-xs font-medium">
