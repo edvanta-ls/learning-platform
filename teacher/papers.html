@@ -401,30 +401,36 @@
     document.getElementById('pdfCurrentWrap').classList.add('hidden');
   }
 
-  async function resolvePdfUrl(btn) {
+  function resolvePdfUrl(btn) {
     const link = document.getElementById('pdfLink').value.trim();
-    if (link) return link;
+    if (link) return Promise.resolve(link);
     if (pendingPdfFile) {
-      const path = `exam-papers/${Date.now()}_${pendingPdfFile.name}`;
+      const safeName = pendingPdfFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `exam-papers/${Date.now()}_${safeName}`;
       const ref  = storage.ref(path);
       const task = ref.put(pendingPdfFile);
 
-      // Show upload progress on the save button
-      task.on('state_changed', snap => {
-        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        if (btn) btn.textContent = `Uploading PDF… ${pct}%`;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          task.cancel();
+          reject(new Error('Upload timed out after 30 s. Please paste a Google Drive or direct link instead.'));
+        }, 30000);
+
+        task.on('state_changed',
+          snap => {
+            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+            if (btn) btn.textContent = `Uploading PDF… ${pct}%`;
+          },
+          err => { clearTimeout(timer); reject(err); },
+          async () => {
+            clearTimeout(timer);
+            try { resolve(await ref.getDownloadURL()); }
+            catch (e) { reject(e); }
+          }
+        );
       });
-
-      // 45-second timeout — if Storage rules block the upload it hangs silently
-      await Promise.race([
-        task,
-        new Promise((_, rej) => setTimeout(() =>
-          rej(new Error('Upload timed out. Please paste a Google Drive or direct link instead.')), 45000))
-      ]);
-
-      return await ref.getDownloadURL();
     }
-    return existingPdfUrl || null;
+    return Promise.resolve(existingPdfUrl || null);
   }
 
   // ── Save paper ────────────────────────────────────────────────────
