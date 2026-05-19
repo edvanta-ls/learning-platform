@@ -401,13 +401,27 @@
     document.getElementById('pdfCurrentWrap').classList.add('hidden');
   }
 
-  async function resolvePdfUrl() {
+  async function resolvePdfUrl(btn) {
     const link = document.getElementById('pdfLink').value.trim();
     if (link) return link;
     if (pendingPdfFile) {
       const path = `exam-papers/${Date.now()}_${pendingPdfFile.name}`;
       const ref  = storage.ref(path);
-      await ref.put(pendingPdfFile);
+      const task = ref.put(pendingPdfFile);
+
+      // Show upload progress on the save button
+      task.on('state_changed', snap => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        if (btn) btn.textContent = `Uploading PDF… ${pct}%`;
+      });
+
+      // 45-second timeout — if Storage rules block the upload it hangs silently
+      await Promise.race([
+        task,
+        new Promise((_, rej) => setTimeout(() =>
+          rej(new Error('Upload timed out. Please paste a Google Drive or direct link instead.')), 45000))
+      ]);
+
       return await ref.getDownloadURL();
     }
     return existingPdfUrl || null;
@@ -432,7 +446,7 @@
     btn.disabled = true; btn.textContent = 'Saving…';
 
     try {
-      const pdfUrl = await resolvePdfUrl();
+      const pdfUrl = await resolvePdfUrl(btn);
       const qIds   = [...selectedQIds];
       const totalMarks = allQuestions.filter(q => qIds.includes(q.id)).reduce((s, q) => s + (q.totalMarks||1), 0);
 
