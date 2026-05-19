@@ -121,17 +121,21 @@
       .where('studentId', '==', currentUser.uid).get();
     submittedPaperIds = new Set(subSnap.docs.map(d => d.data().paperId));
 
-    // Get assigned papers
-    const papersSnap = await db.collection('exam_papers')
-      .where('status', '==', 'published')
-      .where('assignedTo', 'array-contains', currentUser.uid).get();
+    // Get papers: assigned to this student OR open to all students
+    const [assignedSnap, openSnap] = await Promise.all([
+      db.collection('exam_papers').where('status', '==', 'published').where('assignedTo', 'array-contains', currentUser.uid).get(),
+      db.collection('exam_papers').where('status', '==', 'published').where('openToAll', '==', true).get(),
+    ]);
+    const paperMap = {};
+    assignedSnap.docs.forEach(d => { paperMap[d.id] = { id: d.id, ...d.data() }; });
+    openSnap.docs.forEach(d => { paperMap[d.id] = { id: d.id, ...d.data() }; });
 
-    if (papersSnap.empty) {
+    if (Object.keys(paperMap).length === 0) {
       area.innerHTML = '<div class="bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400">No papers assigned to you yet. Check back soon!</p></div>';
       return;
     }
 
-    const papers = papersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const papers = Object.values(paperMap);
     const pending   = papers.filter(p => !submittedPaperIds.has(p.id));
     const completed = papers.filter(p =>  submittedPaperIds.has(p.id));
 
@@ -148,25 +152,40 @@
   }
 
   function renderPaperCard(p, done = false) {
+    const hasQuestions = (p.questionIds?.length || 0) > 0;
+    const pdfBtn = p.pdfUrl
+      ? `<a href="${p.pdfUrl}" target="_blank"
+          class="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          View PDF
+        </a>`
+      : '';
     return `
-      <div class="bg-white rounded-2xl shadow-sm border ${done ? 'border-slate-100' : 'border-indigo-100'} p-5 flex items-center justify-between">
-        <div>
+      <div class="bg-white rounded-2xl shadow-sm border ${done ? 'border-slate-100' : 'border-indigo-100'} p-5 flex items-center justify-between gap-4">
+        <div class="flex-1">
           <p class="font-semibold text-slate-800">${p.title}</p>
-          <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-            <span>${p.questionIds?.length || 0} questions</span>
-            <span>${p.totalMarks || 0} marks</span>
+          <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 flex-wrap">
+            ${hasQuestions ? `<span>${p.questionIds.length} questions · ${p.totalMarks || 0} marks</span>` : ''}
             ${p.duration ? `<span>⏱ ${p.duration} min</span>` : ''}
+            ${p.pdfUrl ? `<span class="text-red-500 font-medium">PDF attached</span>` : ''}
           </div>
         </div>
-        ${done
-          ? `<span class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-              </svg>Submitted</span>`
-          : `<a href="exam.html?paperId=${p.id}"
-              class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
-              Start Exam
-            </a>`}
+        <div class="flex items-center gap-2 flex-shrink-0">
+          ${pdfBtn}
+          ${done
+            ? `<span class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>Submitted</span>`
+            : hasQuestions
+              ? `<a href="exam.html?paperId=${p.id}"
+                  class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                  Start Exam
+                </a>`
+              : ''}
+        </div>
       </div>`;
   }
 
